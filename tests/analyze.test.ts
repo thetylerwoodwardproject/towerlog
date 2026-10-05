@@ -39,6 +39,23 @@ describe('recording analysis', () => {
     expect(l.true_peak).toBeLessThan(0);
   });
 
+  it('gives a short recording a full-width spectrogram, waveform and loudness trace', async () => {
+    const a = await analyzeFile(tone(tmpdir(), 'short.flac', 1000, 4));
+    expect(a.spectrogram.cols).toBeGreaterThan(400);
+    expect(a.wave.max.length).toBeGreaterThan(400);
+    const l = a.loudness!;
+    expect(l.step).toBe(0.1);
+    expect(l.momentary.length).toBeGreaterThan(30);
+    expect(l.short.slice(0, 20).every((v) => v === -70)).toBe(true);
+    expect(l.max_short).toBeGreaterThan(-40);
+  });
+
+  it('shows no short-term reading under 3 seconds', async () => {
+    const a = await analyzeFile(tone(tmpdir(), 'tiny.flac', 1000, 2));
+    expect(a.loudness!.max_short).toBe(-70);
+    expect(a.loudness!.max_momentary).toBeGreaterThan(-40);
+  });
+
   it('rejects a file with no audio', async () => {
     const d = tmpdir();
     const f = path.join(d, 'bad.mp3');

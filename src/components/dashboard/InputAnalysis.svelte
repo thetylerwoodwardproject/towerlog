@@ -85,6 +85,8 @@
     t = audio.currentTime;
   }
 
+  /** Seconds between time-axis labels: about six to eight labels whatever the length. */
+  const tickStep = (dur: number) => [1, 2, 5, 10, 15, 30, 60, 120, 180, 300, 600].find((x) => dur / x <= 8) ?? 600;
   const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
   const khz = (hz: number) => (hz >= 1000 ? `${+(hz / 1000).toFixed(1)}k` : String(hz));
   const AXIS = [50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000];
@@ -115,7 +117,7 @@
       ctx.fillRect(x, y1, Math.max(1, pw / n), Math.max(1, y2 - y1));
     }
     ctx.fillStyle = mfg; ctx.font = '10px ui-monospace, monospace'; ctx.textBaseline = 'bottom';
-    const step = a.duration > 600 ? 180 : a.duration > 120 ? 60 : 15;
+    const step = tickStep(a.duration);
     for (let t = 0; t <= a.duration; t += step) {
       const x = L + (t / a.duration) * pw;
       ctx.textAlign = t === 0 ? 'left' : 'center';
@@ -181,7 +183,7 @@
       ctx.fillText(khz(hz), L - 4, ph - ((Math.log(hz) - fmin) / (fmax - fmin)) * ph);
     }
     ctx.textBaseline = 'bottom';
-    const step = a.duration > 600 ? 180 : a.duration > 120 ? 60 : 15;
+    const step = tickStep(a.duration);
     for (let t = 0; t <= a.duration; t += step) { ctx.textAlign = t === 0 ? 'left' : 'center'; ctx.fillText(mmss(t), L + (t / a.duration) * pw, h); }
   }
 
@@ -198,7 +200,7 @@
     ctx.clearRect(0, 0, w, h);
     const L = 34, R = 8, T = 6, B = 16, pw = w - L - R, ph = h - T - B;
     const Y = (v: number) => T + ((LU_TOP - Math.max(LU_BOTTOM, Math.min(LU_TOP, v))) / (LU_TOP - LU_BOTTOM)) * ph;
-    const X = (i: number) => L + ((i * l.step + 0.5) / a.duration) * pw;
+    const X = (i: number) => L + ((i * l.step) / a.duration) * pw;
     ctx.font = '10px ui-monospace, monospace'; ctx.lineWidth = 1;
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     for (let v = LU_TOP; v >= LU_BOTTOM; v -= 10) {
@@ -223,7 +225,7 @@
     line(l.short, fg, 1.5);
     line(l.integrated_run, '#60a5fa', 1.5);
     ctx.fillStyle = mfg; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    const step = a.duration > 600 ? 180 : a.duration > 120 ? 60 : 15;
+    const step = tickStep(a.duration);
     for (let t = 0; t <= a.duration; t += step) { ctx.textAlign = t === 0 ? 'left' : 'center'; ctx.fillText(mmss(t), L + (t / a.duration) * pw, h); }
   }
 
@@ -280,7 +282,7 @@
       <figure class="rounded-lg border p-3">
         <figcaption class="mb-2 text-xs font-medium text-muted-foreground">Loudness, LUFS</figcaption>
         <dl class="mb-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-5">
-          {#each [['Integrated (long-term)', lufs(l.integrated), 'LUFS'], ['Max short-term (3 s)', lufs(l.max_short), 'LUFS'], ['Max momentary (400 ms)', lufs(l.max_momentary), 'LUFS'], ['Loudness range', l.lra.toFixed(1), 'LU'], ['True peak', lufs(l.true_peak), 'dBTP']] as [k, v, u] (k)}
+          {#each [['Integrated (long-term)', lufs(l.integrated), 'LUFS'], ['Max short-term (3 s)', l.max_short <= -69.9 ? 'n/a' : lufs(l.max_short), l.max_short <= -69.9 ? 'needs 3 s' : 'LUFS'], ['Max momentary (400 ms)', lufs(l.max_momentary), 'LUFS'], ['Loudness range', l.lra.toFixed(1), 'LU'], ['True peak', lufs(l.true_peak), 'dBTP']] as [k, v, u] (k)}
             <div><dt class="text-[11px] text-muted-foreground">{k}</dt><dd class="font-mono text-lg tabular-nums">{v} <span class="text-xs text-muted-foreground">{u}</span></dd></div>
           {/each}
         </dl>

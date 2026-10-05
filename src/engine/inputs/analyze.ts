@@ -3,7 +3,7 @@
 // numbers are computed here in one pass. Results are cached next to the recording
 // as <file>.analysis.json (pruneInput and purgeForSpace delete them with the audio).
 import fs from 'node:fs';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import type { Analysis, Loudness } from '../../lib/types.ts';
 
 export const ANALYSIS_SUFFIX = '.analysis.json';
@@ -16,27 +16,29 @@ const F_LOW = 30;
 const DB_FLOOR = -100;
 const TIMEOUT_MS = 180_000;
 
-/** In-place radix-2 FFT. */
+const COS = Float64Array.from({ length: FFT / 2 }, (_, k) => Math.cos((-2 * Math.PI * k) / FFT));
+const SIN = Float64Array.from({ length: FFT / 2 }, (_, k) => Math.sin((-2 * Math.PI * k) / FFT));
+const REV = Uint16Array.from({ length: FFT }, (_, i) => {
+  let r = 0;
+  for (let b = 1, v = i; b < FFT; b <<= 1, v >>= 1) r = (r << 1) | (v & 1);
+  return r;
+});
+
+/** In-place radix-2 FFT of length FFT. */
 function fft(re: Float64Array, im: Float64Array) {
-  const n = re.length;
-  for (let i = 1, j = 0; i < n; i++) {
-    let bit = n >> 1;
-    for (; j & bit; bit >>= 1) j ^= bit;
-    j ^= bit;
-    if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+  const n = FFT;
+  for (let i = 0; i < n; i++) {
+    const j = REV[i];
+    if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
   }
   for (let len = 2; len <= n; len <<= 1) {
-    const ang = (-2 * Math.PI) / len;
-    const wr = Math.cos(ang), wi = Math.sin(ang);
+    const half = len >> 1, stride = n / len;
     for (let i = 0; i < n; i += len) {
-      let cr = 1, ci = 0;
-      for (let k = 0; k < len / 2; k++) {
-        const a = i + k, b = a + len / 2;
+      for (let k = 0, w = 0; k < half; k++, w += stride) {
+        const a = i + k, b = a + half, cr = COS[w], ci = SIN[w];
         const tr = re[b] * cr - im[b] * ci, ti = re[b] * ci + im[b] * cr;
         re[b] = re[a] - tr; im[b] = im[a] - ti;
         re[a] += tr; im[a] += ti;
-        const nr = cr * wr - ci * wi;
-        ci = cr * wi + ci * wr; cr = nr;
       }
     }
   }
@@ -79,15 +81,20 @@ export class Analyzer {
   private blockMax: number[] = [];
   private bMin = 1; private bMax = -1; private bN = 0;
   samples = 0;
+  /**
+   * `hop`: samples between spectrogram frames (FFT = no overlap; less overlaps frames so a short
+   * recording still gets enough columns). `block`: samples per waveform min/max block.
+   */
+  constructor(private hop = FFT, private block = FFT) {}
 
   push(pcm: Int16Array) {
     for (let i = 0; i < pcm.length; i++) {
       const v = pcm[i] / 32768;
       if (v < this.bMin) this.bMin = v;
       if (v > this.bMax) this.bMax = v;
-      if (++this.bN === FFT) { this.blockMin.push(this.bMin); this.blockMax.push(this.bMax); this.bMin = 1; this.bMax = -1; this.bN = 0; }
+      if (++this.bN === this.block) { this.blockMin.push(this.bMin); this.blockMax.push(this.bMax); this.bMin = 1; this.bMax = -1; this.bN = 0; }
       this.tail[this.fill++] = v;
-      if (this.fill === FFT) { this.frame(); this.fill = 0; }
+      if (this.fill === FFT) { this.frame(); this.tail.copyWithin(0, this.hop, FFT); this.fill = FFT - this.hop; }
     }
     this.samples += pcm.length;
   }
@@ -133,7 +140,7 @@ export class Analyzer {
       }
     }
     return {
-      version: 4,
+      version: 5,
       size: 0,
       mtime: 0,
       duration: this.samples / ANALYSIS_RATE,
@@ -148,9 +155,23 @@ export class Analyzer {
 }
 
 /** Decode `file` with ffmpeg and analyse it. Rejects if ffmpeg fails or yields no audio. */
-export function analyzeFile(file: string, bin = 'ffmpeg'): Promise<Analysis> {
+/** Duration in seconds from the container, or null. */
+function probeDuration(file: string, bin: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    execFile(bin.replace(/ffmpeg$/, 'ffprobe'), ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', file], { timeout: 10_000 }, (err, out) => {
+      const d = Number(String(out).trim());
+      resolve(!err && Number.isFinite(d) && d > 0 ? d : null);
+    });
+  });
+}
+
+export async function analyzeFile(file: string, bin = 'ffmpeg'): Promise<Analysis> {
+  // Enough overlap that even a few seconds of audio fills the spectrogram; long files need none.
+  const dur = (await probeDuration(file, bin)) ?? 900;
+  const hop = Math.max(128, Math.min(FFT, Math.floor((dur * ANALYSIS_RATE) / COLS)));
+  const block = Math.max(32, Math.min(FFT, Math.floor((dur * ANALYSIS_RATE) / WAVE_POINTS)));
   return new Promise((resolve, reject) => {
-    const a = new Analyzer();
+    const a = new Analyzer(hop, block);
     const p = spawn(bin, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-i', file, '-vn', '-map', '0:a:0', '-ac', '1', '-ar', String(ANALYSIS_RATE), '-f', 's16le', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
     let err = '';
     let carry: Buffer = Buffer.alloc(0);
@@ -168,7 +189,7 @@ export function analyzeFile(file: string, bin = 'ffmpeg'): Promise<Analysis> {
     p.on('error', (e) => { clearTimeout(timer); reject(new Error(`cannot run ${bin}: ${e.message}`)); });
     p.on('close', (code) => {
       clearTimeout(timer);
-      if (a.samples < FFT * 2) reject(new Error(err.trim().split('\n').pop() || (code ? `ffmpeg exited ${code}` : 'no audio in this file')));
+      if (a.samples < FFT) reject(new Error(err.trim().split('\n').pop() || (code ? `ffmpeg exited ${code}` : 'no audio in this file')));
       else loudness(file, bin).then((l) => resolve({ ...a.result(), loudness: l }));
     });
   });
@@ -190,7 +211,7 @@ export function loudness(file: string, bin = 'ffmpeg'): Promise<Loudness | null>
     let t = 0;
     const sec = { s: [] as number[], m: [] as number[], i: [] as number[] };
     let cur: Record<string, number> = {};
-    let maxM = LUFS_FLOOR, maxS = LUFS_FLOOR, tp = 0, lra = 0, integ = LUFS_FLOOR, next = 1;
+    let maxM = LUFS_FLOOR, maxS = LUFS_FLOOR, tp = 0, lra = 0, integ = LUFS_FLOOR;
     const clamp = (v: number) => (Number.isFinite(v) ? Math.max(LUFS_FLOOR, v) : LUFS_FLOOR);
     const flush = () => {
       if (cur.M === undefined) return;
@@ -201,7 +222,7 @@ export function loudness(file: string, bin = 'ffmpeg'): Promise<Loudness | null>
       tp = Math.max(tp, cur.true_peak ?? 0);
       lra = cur.LRA ?? lra;
       integ = i;
-      if (t >= next) { sec.s.push(t >= 3 ? s : LUFS_FLOOR); sec.m.push(m); sec.i.push(i); next = Math.floor(t) + 1; }
+      sec.s.push(t >= 3 ? s : LUFS_FLOOR); sec.m.push(m); sec.i.push(i);
     };
     p.stdout.on('data', (d: Buffer) => {
       buf += d.toString();
@@ -218,17 +239,17 @@ export function loudness(file: string, bin = 'ffmpeg'): Promise<Loudness | null>
     p.on('close', () => {
       clearTimeout(timer);
       flush();
-      if (sec.s.length < 2) return resolve(null);
+      if (sec.s.length < 3) return resolve(null);
       const stride = Math.ceil(sec.s.length / LUFS_POINTS);
       const pick = (a: number[]) => a.filter((_, k) => k % stride === 0).map((v) => +v.toFixed(1));
       resolve({
-        step: stride,
+        step: +(stride * 0.1).toFixed(1),
         short: pick(sec.s),
         momentary: pick(sec.m),
         integrated_run: pick(sec.i),
         integrated: +integ.toFixed(1),
         lra: +lra.toFixed(1),
-        max_short: +maxS.toFixed(1),
+        max_short: +maxS.toFixed(1),  // -70 when the file is under 3 s
         max_momentary: +maxM.toFixed(1),
         true_peak: tp > 0 ? +(20 * Math.log10(tp)).toFixed(1) : LUFS_FLOOR,
       });
@@ -241,7 +262,7 @@ export function readCached(file: string): Analysis | null {
   try {
     const st = fs.statSync(file);
     const c = JSON.parse(fs.readFileSync(file + ANALYSIS_SUFFIX, 'utf8')) as Analysis;
-    return c.version === 4 && c.size === st.size && c.mtime === st.mtimeMs ? c : null;
+    return c.version === 5 && c.size === st.size && c.mtime === st.mtimeMs ? c : null;
   } catch { return null; }
 }
 

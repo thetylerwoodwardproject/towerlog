@@ -74,7 +74,7 @@ export interface FaultRecord {
 
 /** Waveform, spectrum, spectrogram and loudness of one recording (see engine/inputs/analyze.ts). */
 export interface Analysis {
-  version: 4;
+  version: 5;
   /** Size and mtime of the file it was made from; a cached copy is stale when they differ. */
   size: number;
   mtime: number;
@@ -89,7 +89,7 @@ export interface Analysis {
   loudness: Loudness | null;
 }
 
-/** EBU R128 / BS.1770 loudness over a recording. Series have one point per `step` seconds; -70 = silence / not yet valid. */
+/** EBU R128 / BS.1770 loudness over a recording. Series have one point per `step` seconds (0.1 s for short files); -70 = silence / not yet valid. */
 export interface Loudness {
   step: number;
   /** Short-term (3 s window), LUFS. */
