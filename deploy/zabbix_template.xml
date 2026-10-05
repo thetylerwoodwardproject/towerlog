@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<zabbix_export>
+    <version>6.0</version>
+    <date>2026-10-05T00:31:31Z</date>
+    <groups>
+        <group>
+            <uuid>4ea5d5f54deb471981dd95e19fdc29ae</uuid>
+            <name>Templates</name>
+        </group>
+    </groups>
+    <templates>
+        <template>
+            <uuid>48417f1a18e54f5d86e6612c62cf135e</uuid>
+            <template>Towerlog</template>
+            <name>Towerlog</name>
+            <description>Towerlog broadcast audio logger. Data arrives with the Zabbix trapper (zabbix_sender) protocol. Each input is discovered automatically. Attach this template to the Zabbix host whose name matches the Host name set in the Towerlog web UI. Requires Zabbix 6.0 or newer.</description>
+            <groups>
+                <group>
+                    <name>Templates</name>
+                </group>
+            </groups>
+            <items>
+                <item>
+                    <uuid>ac5db11a5236445292b36b9b43687785</uuid>
+                    <name>Towerlog event</name>
+                    <type>TRAP</type>
+                    <key>towerlog.event</key>
+                    <delay>0</delay>
+                    <history>7d</history>
+                    <trends>0</trends>
+                    <value_type>TEXT</value_type>
+                    <description>Last fault event pushed by Towerlog (feed lost, silence, clipping, mono, phase, and their clears).</description>
+                </item>
+                <item>
+                    <uuid>d428448c78264fa4a03c94cb662dd5e5</uuid>
+                    <name>Towerlog inputs live</name>
+                    <type>TRAP</type>
+                    <key>towerlog.inputs_live</key>
+                    <delay>0</delay>
+                    <history>31d</history>
+                    <trends>365d</trends>
+                    <value_type>UNSIGNED</value_type>
+                    <description>Number of inputs currently delivering audio.</description>
+                    <triggers>
+                        <trigger>
+                            <uuid>799ebafe085247fe97bc081fa9419c87</uuid>
+                            <expression>last(/Towerlog/towerlog.inputs_live)=0</expression>
+                            <name>Towerlog: no inputs live</name>
+                            <priority>WARNING</priority>
+                            <description>Zero inputs are currently delivering audio.</description>
+                        </trigger>
+                    </triggers>
+                </item>
+                <item>
+                    <uuid>ce12725173f84da897f79d4368164af9</uuid>
+                    <name>Towerlog heartbeat</name>
+                    <type>TRAP</type>
+                    <key>towerlog.heartbeat</key>
+                    <delay>0</delay>
+                    <history>31d</history>
+                    <trends>365d</trends>
+                    <value_type>UNSIGNED</value_type>
+                    <description>Liveness marker sent every Zabbix interval. A missing value means the host or the Towerlog service is down.</description>
+                    <triggers>
+                        <trigger>
+                            <uuid>81914b9f16a544a4815f2f78c81eaded</uuid>
+                            <expression>nodata(/Towerlog/towerlog.heartbeat,5m)=1</expression>
+                            <name>Towerlog heartbeat lost</name>
+                            <priority>HIGH</priority>
+                            <description>No heartbeat received for 5 minutes: the host or the Towerlog service is down.</description>
+                        </trigger>
+                    </triggers>
+                </item>
+            </items>
+            <discovery_rules>
+                <discovery_rule>
+                    <uuid>85abc4f78aae4f509c98dd6ef9bd1b1e</uuid>
+                    <name>Towerlog inputs</name>
+                    <type>TRAP</type>
+                    <key>towerlog.inputs.discovery</key>
+                    <delay>0</delay>
+                    <lifetime>7d</lifetime>
+                    <description>One entry per input, with macros {#INPUT}, {#NAME}, {#KIND}. Inputs removed from the config are deleted after 7 days.</description>
+                    <item_prototypes>
+                        <item_prototype>
+                            <uuid>e53fbf851d93488ebd10fad7b33a8450</uuid>
+                            <name>{#NAME}: state</name>
+                            <type>TRAP</type>
+                            <key>towerlog.input.state[{#INPUT}]</key>
+                            <delay>0</delay>
+                            <history>7d</history>
+                            <trends>0</trends>
+                            <value_type>CHAR</value_type>
+                            <description>Input state: live, connecting, down or stopped</description>
+                        </item_prototype>
+                        <item_prototype>
+                            <uuid>1fec63c66eda4622934c27b4a012fd85</uuid>
+                            <name>{#NAME}: up</name>
+                            <type>TRAP</type>
+                            <key>towerlog.input.up[{#INPUT}]</key>
+                            <delay>0</delay>
+                            <history>31d</history>
+                            <trends>365d</trends>
+                            <value_type>UNSIGNED</value_type>
+                            <description>1 while the feed is delivering audio, otherwise 0</description>
+                            <valuemap>
+                                <name>Towerlog up/down</name>
+                            </valuemap>
+                        </item_prototype>
+                        <item_prototype>
+                            <uuid>64ed93e5132b418f8a31705c882912b8</uuid>
+                            <name>{#NAME}: name</name>
+                            <type>TRAP</type>
+                            <key>towerlog.input.name[{#INPUT}]</key>
+                            <delay>0</delay>
+                            <history>7d</history>
+                            <trends>0</trends>
+                            <value_type>CHAR</value_type>
+                            <description>Input name</description>
+                        </item_prototype>
+                        <item_prototype>
+                            <uuid>de8d3ea2939d4e62a879502da24cc723</uuid>
+                            <name>{#NAME}: type</name>
+                            <type>TRAP</type>
+                            <key>towerlog.input.kind[{#INPUT}]</key>
+                            <delay>0</delay>
+                            <history>7d</history>
+                            <trends>0</trends>
+                            <value_type>CHAR</value_type>
+                            <description>http, rtp, livewire or push</description>
+                        </item_prototype>
+                        <item_prototype>
+                            <uuid>9876569290d949e0abf86267991fa6a1</uuid>
+                            <name>{#NAME}: recording</name>
+                            <type>TRAP</type>
+                            <key>towerlog.input.recording[{#INPUT}]</key>
+                            <delay>0</delay>
+                            <history>31d</history>
+                            <trends>365d</trends>
+                            <value_type>UNSIGNED</value_type>
+                            <description>1 while the input is recording to disk</description>
+                        </item_prototype>
+                        <item_prototype>
+                            <uuid>e0473d9412b047fd99b71339b6405dfa</uuid>
+                            <name>{#NAME}: audio level</name>
+                            <type>TRAP</type>
+                            <key>towerlog.input.level[{#INPUT}]</key>
+                            <delay>0</delay>
+                            <history>31d</history>
+                            <trends>365d</trends>
+                            <value_type>FLOAT</value_type>
+                            <units>dBFS</units>
+                            <description>Audio level in dBFS (RMS) of the loudest channel</description>
+                        </item_prototype>
+                        <item_prototype>
+                            <uuid>2e7ae474393146b2830406d095fdbc69</uuid>
+                            <name>{#NAME}: feed lost</name>
+                            <type>TRAP</type>
+                            <key>towerlog.input.fault.link[{#INPUT}]</key>
+                            <delay>0</delay>
+                            <history>31d</history>
+                            <trends>365d</trends>
+                            <value_type>UNSIGNED</value_type>
+                            <description>1 while the feed is lost</description>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <uuid>4289e0cdde1d47b1a54a8d6ec58ef036</uuid>
+                                    <expression>last(/Towerlog/towerlog.input.fault.link[{#INPUT}])=1</expression>
+                                    <name>{#NAME}: feed lost</name>
+                                    <priority>HIGH</priority>
+                                    <description>The feed stopped delivering audio (stream down, unit offline or network problem). Clears when audio returns.</description>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                        <item_prototype>
+                            <uuid>a5a453ac68814e1b8c4045c5859a963f</uuid>
+                            <name>{#NAME}: silence</name>
+                            <type>TRAP</type>
+                            <key>towerlog.input.fault.silence[{#INPUT}]</key>
+                            <delay>0</delay>
+                            <history>31d</history>
+                            <trends>365d</trends>
+                            <value_type>UNSIGNED</value_type>
+                            <description>1 while the feed is silent (dead air)</description>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <uuid>44989c9717014bd59960a4d1a08a5b81</uuid>
+                                    <expression>last(/Towerlog/towerlog.input.fault.silence[{#INPUT}])=1</expression>
+                                    <name>{#NAME}: silence (dead air)</name>
+                                    <priority>HIGH</priority>
+                                    <description>The feed has been silent longer than its alert delay set in Towerlog.</description>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                        <item_prototype>
+                            <uuid>92a0a3945942466c94ab9d8e24fdf16c</uuid>
+                            <name>{#NAME}: clipping</name>
+                            <type>TRAP</type>
+                            <key>towerlog.input.fault.clip[{#INPUT}]</key>
+                            <delay>0</delay>
+                            <history>31d</history>
+                            <trends>365d</trends>
+                            <value_type>UNSIGNED</value_type>
+                            <description>1 while the audio is clipping</description>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <uuid>83cd847acdb344f3a6ba91940f46b745</uuid>
+                                    <expression>last(/Towerlog/towerlog.input.fault.clip[{#INPUT}])=1</expression>
+                                    <name>{#NAME}: clipping</name>
+                                    <priority>WARNING</priority>
+                                    <description>The audio has been at full scale longer than the clipping delay set in Towerlog.</description>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                        <item_prototype>
+                            <uuid>f27889c2011148b1b18be8d898522639</uuid>
+                            <name>{#NAME}: mono</name>
+                            <type>TRAP</type>
+                            <key>towerlog.input.fault.mono[{#INPUT}]</key>
+                            <delay>0</delay>
+                            <history>31d</history>
+                            <trends>365d</trends>
+                            <value_type>UNSIGNED</value_type>
+                            <description>1 while left and right are identical</description>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <uuid>086b2f36a29843e785290d416b0326fa</uuid>
+                                    <expression>last(/Towerlog/towerlog.input.fault.mono[{#INPUT}])=1</expression>
+                                    <name>{#NAME}: mono (left and right identical)</name>
+                                    <priority>WARNING</priority>
+                                    <description>Left and right are identical for longer than the delay set in Towerlog.</description>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                        <item_prototype>
+                            <uuid>5f6a064598ea47f9977c397de55eb92d</uuid>
+                            <name>{#NAME}: out of phase</name>
+                            <type>TRAP</type>
+                            <key>towerlog.input.fault.phase[{#INPUT}]</key>
+                            <delay>0</delay>
+                            <history>31d</history>
+                            <trends>365d</trends>
+                            <value_type>UNSIGNED</value_type>
+                            <description>1 while left and right are out of phase</description>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <uuid>de5ff501fed543988dde124bb27f30ad</uuid>
+                                    <expression>last(/Towerlog/towerlog.input.fault.phase[{#INPUT}])=1</expression>
+                                    <name>{#NAME}: channels out of phase</name>
+                                    <priority>WARNING</priority>
+                                    <description>Left and right are out of phase for longer than the delay set in Towerlog.</description>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                    </item_prototypes>
+                    <trigger_prototypes>
+                        <trigger_prototype>
+                            <uuid>8eccd81440c342e3abf2a08c489991b8</uuid>
+                            <expression>last(/Towerlog/towerlog.input.up[{#INPUT}])=1 and last(/Towerlog/towerlog.input.recording[{#INPUT}])=0</expression>
+                            <name>{#NAME}: live but not recording</name>
+                            <priority>WARNING</priority>
+                            <description>The input is delivering audio but is not recording (recording is off or the disk write failed).</description>
+                        </trigger_prototype>
+                    </trigger_prototypes>
+                </discovery_rule>
+            </discovery_rules>
+            <valuemaps>
+                <valuemap>
+                    <uuid>8f07b29b62414182a317ba46252fe63d</uuid>
+                    <name>Towerlog up/down</name>
+                    <mappings>
+                        <mapping>
+                            <value>0</value>
+                            <newvalue>Down</newvalue>
+                        </mapping>
+                        <mapping>
+                            <value>1</value>
+                            <newvalue>Up</newvalue>
+                        </mapping>
+                    </mappings>
+                </valuemap>
+            </valuemaps>
+        </template>
+    </templates>
+</zabbix_export>

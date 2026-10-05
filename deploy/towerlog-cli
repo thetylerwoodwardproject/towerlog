@@ -1,0 +1,29 @@
+#!/bin/sh
+# towerlog: command-line helper (installed to /usr/local/bin/towerlog).
+#
+#   towerlog check              show config problems, tools and inputs
+#   towerlog test-email [ADDR]  send a test email with the saved settings
+#   towerlog password           set a new web UI password
+#   towerlog restart            restart every input (keeps the web UI up)
+#   towerlog logs               follow the service log
+#
+# Settings belong to the towerlog user, so this re-runs itself with sudo.
+APP=@APP_DIR@/dist/towerlog.mjs
+run() { exec sudo -u towerlog env TOWERLOG_CONFIG=@CONF_DIR@/config.json TOWERLOG_DATA=@DATA_DIR@ TOWERLOG_LOG_DIR=@LOG_DIR@ @NODE@ "$APP" "$@"; }
+usage() { sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+[ "$#" -ge 1 ] || usage
+[ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+cd / || exit 1
+cmd=$1; shift
+case "$cmd" in
+  init) run init "$@" ;;
+  check) run check ;;
+  test-email) run test-email "$@" ;;
+  password)
+    stty -echo 2>/dev/null; printf 'New web UI password: '; read -r p1; printf '\nRepeat: '; read -r p2; stty echo 2>/dev/null; echo
+    [ "$p1" = "$p2" ] || { echo "passwords differ" >&2; exit 1; }
+    printf '%s' "$p1" | sudo -u towerlog env TOWERLOG_CONFIG=@CONF_DIR@/config.json TOWERLOG_DATA=@DATA_DIR@ TOWERLOG_LOG_DIR=@LOG_DIR@ @NODE@ "$APP" set-password ;;
+  restart) exec systemctl reload towerlog ;;
+  logs) exec journalctl -u towerlog -f ;;
+  *) usage ;;
+esac

@@ -1,0 +1,12 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Login from '../components/Login.svelte';
+import { getEngine } from '../lib/server/engine.ts';
+import { safeNext } from '../lib/redirect.ts';
+const engine = getEngine();
+const next = safeNext(Astro.url.searchParams.get('next'));
+if (engine.validSession(Astro.cookies.get('towerlog_session')?.value)) return Astro.redirect(next);
+---
+<Layout title="Towerlog · log in">
+  <Login client:load setup={!engine.hasPassword} {next} />
+</Layout>

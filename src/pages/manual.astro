@@ -1,0 +1,210 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Shell from '../components/shell/Shell.svelte';
+import ManualSearch from '../components/manual/ManualSearch.svelte';
+import ManualToc from '../components/manual/ManualToc.svelte';
+
+const toc = [
+  ['overview', 'Overview'],
+  ['quick-start', 'Quick start'],
+  ['dashboard', 'The dashboard'],
+  ['inputs', 'Inputs'],
+  ['push', 'Pi-Tuner and other source clients'],
+  ['recording', 'Recording'],
+  ['faults', 'Faults and alert timing'],
+  ['zabbix', 'Zabbix'],
+  ['email', 'Email alerts'],
+  ['snmp', 'SNMP'],
+  ['system', 'System, files and commands'],
+  ['troubleshooting', 'Troubleshooting'],
+];
+---
+<Layout title="Towerlog · Manual">
+  <Shell client:load page="manual" crumbs={['System', 'Manual']}>
+    <ManualSearch slot="actions" client:load />
+    <div class="flex min-h-0 flex-1">
+      <ManualToc client:load {toc} />
+      <article class="manual min-w-0 flex-1 px-4 py-6 md:px-10 md:py-10 xl:px-16">
+       <div class="mx-auto flex w-full max-w-[760px] flex-col">
+        <div class="mb-6 md:hidden"><ManualSearch client:load /></div>
+      <h1>Towerlog manual</h1>
+      <p class="lead">Towerlog is a broadcast audio logger. It takes in IP audio feeds (Barix and Inovonics units, Icecast and HTTP streams,
+        RTP unicast and multicast, Livewire, and Pi-Tuner streams pushed to it), records each one in 15, 30 or 60 minute files that always
+        start on the clock, shows levels, lets you listen in, and tells you by email, SNMP and Zabbix when a feed fails.</p>
+
+      <section id="overview" data-manual-section>
+      <h2>1 · Overview</h2>
+      <p>One <b>input</b> is one audio feed. Each input runs one <code>ffmpeg</code> process that does two jobs at once: it writes the
+        original audio to disk (no re-encoding, so the log is bit-exact to what arrived) and it decodes a copy for the meters and the
+        fault detectors.</p>
+      <table>
+        <thead><tr><th>Source type</th><th>What it is</th><th>Recorded as</th></tr></thead>
+        <tbody>
+          <tr><td>HTTP / Icecast / Shoutcast</td><td>Towerlog pulls a stream URL. Covers Barix units in server mode, Inovonics 541 / 551 / 525 / 677 streams and any Icecast mount.</td><td>Copied: <code>.mp3</code>, <code>.aac</code> or <code>.mka</code> by the stream codec you choose</td></tr>
+          <tr><td>RTP</td><td>Towerlog listens on a unicast address or joins a multicast group. Linear 16/24-bit, G.711 µ-law/A-law, or MP3.</td><td>FLAC for linear and G.711, MP3 copied for MP3</td></tr>
+          <tr><td>Livewire</td><td>Towerlog joins the multicast group of a Livewire channel number (<code>239.192.x.y</code>, 24-bit, 48 kHz stereo).</td><td>FLAC</td></tr>
+          <tr><td>Icecast push</td><td>A source client such as a Pi-Tuner connects to Towerlog's source port and pushes its stream.</td><td>Copied: <code>.mp3</code> or <code>.aac</code></td></tr>
+        </tbody>
+      </table>
+      <p>Feeds that Towerlog cannot read are simply not offered. If an input stops, Towerlog reconnects on its own, waiting 2 s and
+        doubling up to 30 s so a dead unit doesn't spin.</p>
+      </section>
+
+      <section id="quick-start" data-manual-section>
+      <h2>2 · Quick start</h2>
+      <ol class="steps">
+        <li>Install: <code>sudo ./deploy/install.sh</code> on Debian or Ubuntu, or use the Docker image (see the README). Set the web password when asked, or later with <code>sudo towerlog password</code>.</li>
+        <li>Open the web UI (port 8090) and go to <a href="/config#inputs">Configuration → Inputs</a>. Click <b>Add input</b>, choose the source type and fill in the address.</li>
+        <li>Choose the file length and how many days to keep, and set the silence delay. <b>Add input</b> starts it at once.</li>
+        <li>Open <a href="/">Inputs</a>: the card shows <b>live</b>, the meters move, and <b>recording</b> appears. Press play to listen.</li>
+        <li>For alerts, fill in <a href="/config#smtp">Email</a>, <a href="/config#snmp">SNMP</a> and/or <a href="/config#zabbix">Zabbix</a>. Each has a test button.</li>
+      </ol>
+      </section>
+
+      <section id="dashboard" data-manual-section>
+      <h2>3 · The dashboard</h2>
+      <p>The home page shows a card per input:</p>
+      <ul>
+        <li><b>Status</b>: <i>live</i> (audio arriving), <i>connecting</i>, <i>down</i> (with the reason, for example "Connection refused") or <i>stopped</i> (disabled).</li>
+        <li><b>Fault chips</b>: Feed lost, Silence (with how long), Clipping, Mono, Out of phase. A red banner above the cards lists every input with a fault.</li>
+        <li><b>Meters</b>: a digital peak meter (LEDs, peak hold, dBFS per channel) that updates five times a second.</li>
+        <li><b>Listen</b>: the play button streams the input to your browser as 96 kbps MP3. The encoder only runs while someone listens.</li>
+        <li><b>Recording</b>: shows whether the input is writing files and how long each file is.</li>
+      </ul>
+      <p>Click an input's name to select it. Below the cards, <b>Recordings</b> lists its files by day (play in the browser or download),
+        <b>Faults</b> shows its history, and <b>All faults</b> shows every input's. Browsers can't play <code>.mka</code> files: download them.</p>
+      </section>
+
+      <section id="inputs" data-manual-section>
+      <h2>4 · Inputs</h2>
+      <p>Settings are in <a href="/config#inputs">Configuration → Inputs</a>. Each input saves and restarts on its own.</p>
+      <table>
+        <thead><tr><th>Setting</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td>Stream URL</td><td>HTTP only. Example: <code>http://10.1.2.3:8000/stream</code>.</td></tr>
+          <tr><td>Stream codec</td><td>HTTP and push. What the feed carries, so the recording gets the right file type. Audio is never re-encoded.</td></tr>
+          <tr><td>Address, port, payload</td><td>RTP. Leave the address blank for any unicast sender, or give a multicast group to join. Linear payloads also need the sample rate, the channel count and the payload type (96 is usual; the sender's setting must match, or no audio arrives).</td></tr>
+          <tr><td>Livewire channel</td><td>1 to 32767. Channel N joins <code>239.192.(N÷256).(N mod 256)</code>.</td></tr>
+          <tr><td>Mount, source password</td><td>Push only. See <a href="#push">Pi-Tuner and other source clients</a>.</td></tr>
+        </tbody>
+      </table>
+      <p>Multicast needs the Towerlog host to be on the same network as the feed and to allow IGMP. In Docker use host networking.</p>
+      </section>
+
+      <section id="push" data-manual-section>
+      <h2>5 · Pi-Tuner and other source clients</h2>
+      <p>Towerlog is a destination for Pi-Tuner. It speaks the Icecast source protocol (<code>SOURCE</code> and <code>PUT</code>, HTTP Basic login)
+        on its <b>source port</b> (default 8000, <code>source.port</code> in the config file).</p>
+      <ol class="steps">
+        <li>In Towerlog add an input of type <b>Icecast push</b>. Give it a mount (for example <code>/kutx</code>) and a password. The editor shows the host and port to use.</li>
+        <li>In Pi-Tuner, open Configuration → Icecast and set the host to this Towerlog server, the port to Towerlog's source port, and the source password to the one you just set. Give the station the same mount.</li>
+        <li>When Pi-Tuner connects the input goes <b>live</b> and starts recording. If the connection drops, the input shows <i>down</i> and a <i>Feed lost</i> fault is raised after the link delay.</li>
+      </ol>
+      <p>Each Towerlog push input accepts one source at a time; a new connection on the same mount replaces the old one, so a Pi-Tuner that reconnects after a network
+        glitch is never locked out. Pi-Tuner's now-playing updates are accepted and ignored. Other encoders (BUTT, Liquidsoap, ffmpeg) work the same way.</p>
+      </section>
+
+      <section id="recording" data-manual-section>
+      <h2>6 · Recording</h2>
+      <p>Files are cut by <code>ffmpeg</code> on the wall clock of the Towerlog host: a 60 minute input starts a new file at the top of every hour,
+        a 30 minute input at :00 and :30, a 15 minute input at :00, :15, :30 and :45. The cut lands on the next audio frame, within about a tenth of a second.
+        The first file after a start, restart or reconnect is shorter.</p>
+      <pre>&lt;recordings&gt;/&lt;Input_name&gt;/YYYY/MM/DD/&lt;Input_name&gt;_YYMMDD_HHMM.&lt;ext&gt;</pre>
+      <ul>
+        <li><b>Keep days</b> per input deletes older files (checked hourly). 0 keeps everything.</li>
+        <li><b>Disk watermark</b> (Configuration → System → Storage): when free space falls under the number of GB you set, the oldest recordings across all inputs are deleted, but never one written in the last 2 hours. 0 turns it off.</li>
+        <li>The <b>recordings folder</b> can be moved to another disk under <code>/mnt</code>, <code>/media</code> or <code>/srv</code> (add more with <code>TOWERLOG_RECORDINGS_ROOTS</code>).</li>
+        <li>Set the host's time zone and clock correctly: file names and cuts follow its local time.</li>
+      </ul>
+      </section>
+
+      <section id="faults" data-manual-section>
+      <h2>7 · Faults and alert timing</h2>
+      <p>A fault is raised only after its condition has held for its delay, and cleared as soon as it stops. Every raise and clear is written to the fault history
+        (<code>faults.jsonl</code> in the data folder) and sent to email, SNMP and Zabbix.</p>
+      <table>
+        <thead><tr><th>Fault</th><th>Condition</th><th>Delay setting</th></tr></thead>
+        <tbody>
+          <tr><td>Feed lost</td><td>No audio is arriving: the stream is down, the unit is offline or the source disconnected.</td><td>Alert when feed lost for (default 5 s)</td></tr>
+          <tr><td>Silence</td><td>The louder channel is quieter than the silence level (default −50 dBFS).</td><td>Alert on silence after: 5 s, 10 s, 30 s, 1 min, 2 min, 5 min, 10 min, or any custom value from 1 to 3600 s (default 30 s)</td></tr>
+          <tr><td>Clipping</td><td>At least 10 samples at full scale within a second.</td><td>Clipping delay (default 10 s)</td></tr>
+          <tr><td>Mono</td><td>Left and right are identical. Off by default.</td><td>Mono / phase delay (default 30 s)</td></tr>
+          <tr><td>Out of phase</td><td>Left and right cancel when summed. Off by default.</td><td>Mono / phase delay</td></tr>
+        </tbody>
+      </table>
+      <p>While the feed is lost the audio faults cannot be judged, so they clear and the one <i>Feed lost</i> fault stands. A channel that is dead on its own is
+        not reported as mono or phase.</p>
+      </section>
+
+      <section id="zabbix" data-manual-section>
+      <h2>8 · Zabbix</h2>
+      <p>Towerlog pushes with the Zabbix trapper protocol (TCP 10051). Download the template from <a href="/config#zabbix">Configuration → Zabbix</a>,
+        import it on the Zabbix server (6.0 or newer) and attach it to a host whose name matches the <b>Host name</b> in Towerlog.</p>
+      <ul>
+        <li><b>Discovery</b>: every input is discovered automatically (<code>towerlog.inputs.discovery</code>).</li>
+        <li><b>Items per input</b>: state, up, name, type, recording, level, and <code>fault.link</code>, <code>fault.silence</code>, <code>fault.clip</code>, <code>fault.mono</code>, <code>fault.phase</code> (1 while raised).</li>
+        <li><b>Triggers</b>: one per fault, plus "live but not recording", "no inputs live" and "heartbeat lost" (no heartbeat for 5 minutes).</li>
+        <li><b>Events</b>: each raise and clear is also pushed as text to <code>towerlog.event</code>.</li>
+      </ul>
+      </section>
+
+      <section id="email" data-manual-section>
+      <h2>9 · Email alerts</h2>
+      <p>Configure the SMTP server in <a href="/config#smtp">Configuration → Email</a>. Towerlog mails when an input raises or clears a fault (including how long it lasted),
+        when free disk space drops below the alert level, and when the service starts or stops. Each kind has its own switch. Use <b>Send test email</b> after saving.</p>
+      </section>
+
+      <section id="snmp" data-manual-section>
+      <h2>10 · SNMP</h2>
+      <p>The agent answers GET, GETNEXT and GETBULK (v2c and v3, read-only) and sends traps. Download the <b>TOWERLOG-MIB</b> from
+        <a href="/config#snmp">Configuration → SNMP</a> (enterprise number 99999 is a placeholder: register your own before wide use).</p>
+      <ul>
+        <li><b>System</b> scalars: version, uptime, inputs total, inputs live, inputs faulted, host name.</li>
+        <li><b>Input table</b>: one row per input with status, level, silent seconds, one flag per fault, recording, file length and detail.</li>
+        <li><b>Traps</b>: <code>towerlogInputFault</code> and <code>towerlogInputCleared</code> (the text says which fault), <code>towerlogDiskLow</code>, <code>towerlogDiskOk</code>, service started and stopped, an optional heartbeat, and a test trap.</li>
+      </ul>
+      </section>
+
+      <section id="system" data-manual-section>
+      <h2>11 · System, files and commands</h2>
+      <table>
+        <thead><tr><th>Path</th><th>What</th></tr></thead>
+        <tbody>
+          <tr><td><code>/etc/towerlog/config.json</code></td><td>All settings, mode 600 (it holds passwords). The previous version is kept as <code>config.json.bak</code>.</td></tr>
+          <tr><td><code>/var/lib/towerlog/</code></td><td>Recordings, <code>faults.jsonl</code>, state.</td></tr>
+          <tr><td><code>/var/log/towerlog/</code></td><td><code>towerlog.log</code>, <code>faults.log</code>, <code>email.log</code>, <code>zabbix.log</code>, <code>snmp.log</code>.</td></tr>
+        </tbody>
+      </table>
+      <pre>towerlog check               # config problems, ffmpeg, inputs
+towerlog password            # set the web UI password
+towerlog test-email [ADDR]   # test email with the saved settings
+towerlog restart             # reconnect every input, keep the web UI up
+towerlog logs                # follow the service log</pre>
+      <p>Optional: set <code>TOWERLOG_ALLOW="10.0.0.0/8,::1"</code> in the service environment to restrict the web UI to certain addresses.</p>
+      </section>
+
+      <section id="troubleshooting" data-manual-section>
+      <h2>12 · Troubleshooting</h2>
+      <dl>
+        <dt>An HTTP input stays "down" with "Connection refused" or "Server returned 404".</dt>
+        <dd>Open the URL in a browser or VLC from the Towerlog host. For a Barix, make sure it is streaming in server mode on that port. Check firewalls.</dd>
+        <dt>An RTP or Livewire input stays "connecting".</dt>
+        <dd>No packets arrive. Check the group address, port and payload, that Towerlog is on the right network, and that IGMP snooping on the switch has a querier.</dd>
+        <dt>A push input says "waiting for the source to connect".</dt>
+        <dd>The source can't reach the source port, or the mount or password differs. The log lists "bad password" attempts. Mounts must match exactly, including the leading slash.</dd>
+        <dt>"Live but not recording".</dt>
+        <dd>Recording is off for the input, or the disk is full or read-only. Check the recordings folder permissions (the service user must write to it).</dd>
+        <dt>Listening gives silence or errors.</dt>
+        <dd>The input must be live. ffmpeg must be installed (the System page shows it).</dd>
+        <dt>Silence alerts fire on quiet but live programme.</dt>
+        <dd>Lower the silence level (for example −60 dBFS) or raise the delay.</dd>
+        <dt>Files don't start exactly on the hour.</dt>
+        <dd>The cut is on the next frame, within about 0.1 s. The first file after a start or reconnect is shorter by design. Check the host clock.</dd>
+      </dl>
+      </section>
+
+       </div>
+      </article>
+    </div>
+  </Shell>
+</Layout>

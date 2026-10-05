@@ -1,0 +1,16 @@
+# Towerlog with Docker. Host networking is needed for RTP and Livewire multicast
+# (IGMP joins do not cross the default bridge); the web UI is on :8090 and the
+# Icecast source port for Pi-Tuners is :8000.
+#
+#   docker compose up -d
+#   echo 'a long password' | docker compose exec -T towerlog node dist/towerlog.mjs set-password
+services:
+  towerlog:
+    build: .
+    image: towerlog
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - ./towerlog/config:/config
+      - ./towerlog/data:/data      # recordings and the fault history: point this at your big disk
+      - ./towerlog/logs:/logs

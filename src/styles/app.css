@@ -1,0 +1,111 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn-svelte/tailwind.css";
+
+/* The theme is designed dark; shadcn's `dark:` overrides (tinted inputs, outline
+   buttons) would only kick in with an OS dark preference, so pin them off. */
+@custom-variant dark (&:is(.dark *));
+
+/* Dark-only zinc theme for Towerlog: near-black panels split by hairline
+   borders, white primary actions, green "live", amber warnings, red faults. */
+:root {
+  --radius: 0.5rem;
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #09090b;
+  --card-foreground: #fafafa;
+  --popover: #09090b;
+  --popover-foreground: #fafafa;
+  --primary: #fafafa;
+  --primary-foreground: #09090b;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --muted: #18181b;
+  --muted-foreground: #71717a;
+  --accent: #18181b;
+  --accent-foreground: #fafafa;
+  --destructive: #ef4444;
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #52525b;
+
+  /* Secondary text (#a1a1aa) and body copy on dark (#d4d4d8). */
+  --subtle: #a1a1aa;
+  --soft: #d4d4d8;
+  --faint: #52525b;
+  --ok: #4ade80;
+  --ok-dim: #166534;
+  --warn: #eab308;
+  --bad: #ef4444;
+  --bad-border: #3f1d1d;
+  --bad-text: #fca5a5;
+  --info: #38bdf8;
+  --panel: #09090b;
+  --panel-2: #18181b;
+}
+
+@theme inline {
+  --font-sans: "Geist Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ok: var(--ok);
+  --color-ok-dim: var(--ok-dim);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-info: var(--info);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-subtle: var(--subtle);
+  --color-soft: var(--soft);
+  --color-faint: var(--faint);
+  --color-bad-border: var(--bad-border);
+  --color-bad-text: var(--bad-text);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground text-sm antialiased;
+  }
+}
+
+/* Status pill: hairline border, soft text, a coloured dot (see StatusBadge / Dot). */
+@utility pill {
+  @apply inline-flex h-[22px] items-center gap-1.5 rounded-full border border-border px-2 text-[11px] font-medium text-soft;
+}
+@utility field-label {
+  @apply flex flex-col gap-1.5 text-[13px] font-medium text-foreground;
+}
+/* Bordered panel with a title row, the redesign's basic container. */
+@utility panel {
+  @apply rounded-lg border border-border;
+}
+@utility panel-head {
+  @apply flex items-center gap-2 border-b border-border px-4 py-3 text-sm font-medium;
+}
