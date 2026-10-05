@@ -1,0 +1,7 @@
+[Unit]
+Description=Tell chrony to re-read its source files (after Towerlog saved new NTP servers)
+
+[Service]
+Type=oneshot
+# Root, because chronyc's reload command is only allowed for root. Towerlog itself only writes the file.
+ExecStart=/usr/bin/chronyc reload sources

@@ -28,7 +28,7 @@ NoNewPrivileges=true
 ProtectSystem=full
 ProtectHome=true
 PrivateTmp=true
-ReadWritePaths=@CONF_DIR@ @DATA_DIR@ @LOG_DIR@ -/mnt -/media -/srv
+ReadWritePaths=@CONF_DIR@ @DATA_DIR@ @LOG_DIR@ /etc/chrony/sources.d -/mnt -/media -/srv
 
 [Install]
 WantedBy=multi-user.target

@@ -35,6 +35,7 @@
 | 🚨 **Fault detection** | Feed lost, silence (alert after 5 s, 10 s, 30 s, 1 min, 2 min, 5 min, 10 min or any custom time), clipping, mono and out-of-phase, each with its own delay; every raise and clear is logged |
 | 📟 **Email, SNMP and Zabbix** | SMTP alerts, an SNMP agent (v2c / v3) with traps and its own MIB, and a Zabbix trapper with a generated template |
 | 📊 **Live UI** | A card per input with VU and peak meters, fault chips, a listen-in player, recordings by day with playback and download, and the fault history |
+| 🕰️ **Clock** | chrony keeps the host clock right (NTP servers set in the UI); the dashboard warns if it drifts or loses sync, since file times depend on it |
 | 🧹 **Retention** | Keep-days per input, plus a disk watermark that deletes the oldest recordings first |
 | 🔁 **Encoders can send to it** | Anything that can send to an Icecast server (ffmpeg, BUTT, Liquidsoap, a hardware encoder) can send to Towerlog instead and have the stream logged |
 
@@ -55,7 +56,7 @@
 sudo ./deploy/install.sh
 ```
 
-It installs ffmpeg and Node.js 22, builds the app into `/usr/local/lib/towerlog`, creates the `towerlog` user, asks for a web password and starts `towerlog.service`.
+It installs ffmpeg, chrony and Node.js 22, builds the app into `/usr/local/lib/towerlog`, creates the `towerlog` user, asks for a web password and starts `towerlog.service`.
 Then open `http://<server>:8090` and add inputs under **Configuration → Inputs**. Settings are in `/etc/towerlog/config.json`, recordings in `/var/lib/towerlog/recordings`.
 
 **Docker** (use host networking for multicast):

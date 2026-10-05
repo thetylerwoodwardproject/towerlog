@@ -1,0 +1,9 @@
+[Unit]
+Description=Reload chrony when Towerlog changes its NTP servers
+
+[Path]
+PathChanged=/etc/chrony/sources.d/towerlog.sources
+Unit=towerlog-chrony.service
+
+[Install]
+WantedBy=multi-user.target

@@ -147,6 +147,11 @@ export const SourceSchema = z.object({
   bind: str('0.0.0.0'),
 });
 
+/** NTP servers chrony should use (blank = the host's own chrony defaults). Written to chrony's sources.d by clock.ts. */
+export const ClockSchema = z.object({
+  servers: z.array(z.string()).catch([]).default([]),
+});
+
 export const ConfigSchema = z.object({
   inputs: z.array(z.unknown()).catch([]).default([]),
   zabbix: ZabbixSchema.catch(ZabbixSchema.parse({})).default(ZabbixSchema.parse({})),
@@ -154,6 +159,7 @@ export const ConfigSchema = z.object({
   snmp: SnmpSchema.catch(SnmpSchema.parse({})).default(SnmpSchema.parse({})),
   web: WebSchema.catch(WebSchema.parse({})).default(WebSchema.parse({})),
   source: SourceSchema.catch(SourceSchema.parse({})).default(SourceSchema.parse({})),
+  clock: ClockSchema.catch(ClockSchema.parse({})).default(ClockSchema.parse({})),
   recordings_dir: str(),
   /** Disk watermark: when free space falls under this many GB the oldest recordings are deleted (0 = off). */
   purge_min_free_gb: num(0),
@@ -165,6 +171,7 @@ export type SnmpConfig = z.infer<typeof SnmpSchema>;
 export type TrapTarget = z.infer<typeof TrapTargetSchema>;
 export type WebConfig = z.infer<typeof WebSchema>;
 export type SourceConfig = z.infer<typeof SourceSchema>;
+export type ClockConfig = z.infer<typeof ClockSchema>;
 export interface Config {
   inputs: InputConfig[];
   zabbix: ZabbixConfig;
@@ -172,6 +179,7 @@ export interface Config {
   snmp: SnmpConfig;
   web: WebConfig;
   source: SourceConfig;
+  clock: ClockConfig;
   recordings_dir: string;
   purge_min_free_gb: number;
 }
@@ -266,7 +274,7 @@ export class ConfigUnreadableError extends Error {
   }
 }
 
-const SECTIONS = ['zabbix', 'smtp', 'snmp', 'web', 'source'] as const;
+const SECTIONS = ['zabbix', 'smtp', 'snmp', 'web', 'source', 'clock'] as const;
 const isObject = (v: unknown) => !!v && typeof v === 'object' && !Array.isArray(v);
 
 /** Why a parsed file can't be loaded without losing a whole section, or null. */

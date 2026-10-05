@@ -12,6 +12,7 @@ const toc = [
   ['receive', 'Receiving a stream from an encoder'],
   ['recording', 'Recording'],
   ['faults', 'Faults and alert timing'],
+  ['clock', 'Clock and NTP'],
   ['zabbix', 'Zabbix'],
   ['email', 'Email alerts'],
   ['snmp', 'SNMP'],
@@ -138,8 +139,21 @@ const toc = [
         not reported as mono or phase.</p>
       </section>
 
+      <section id="clock" data-manual-section>
+      <h2>8 · Clock and NTP</h2>
+      <p>Towerlog cuts every recording file on this computer's clock and stamps every fault with it. If the clock is wrong, a "top of the hour" file starts at the wrong time and fault times in emails, SNMP and Zabbix are wrong too.
+        Keep it right with <b>chrony</b>, which the installer sets up. Open <a href="/config#clock">Configuration → Clock</a>:</p>
+      <ul>
+        <li><b>Status</b> shows whether the clock is synchronised, which server it follows, how far off it is (in milliseconds) and when it last updated. The dashboard warns when it is not synchronised or is more than half a second out.</li>
+        <li><b>NTP servers</b>: type host names or addresses separated by spaces and save. Leave it blank to use the host's own chrony defaults. If you have your own NTP or GPS time server, put it first. Towerlog writes the list to <code>/etc/chrony/sources.d/towerlog.sources</code> and chrony re-reads it at once; Towerlog never runs as root.</li>
+        <li><b>Servers chrony is using</b> lists each one with its stratum, offset and whether it is in use, on standby or unreachable.</li>
+      </ul>
+      <p>The time zone is the host's (set with <code>timedatectl set-timezone</code>); it decides what "top of the hour" means for the file names. In Docker the clock belongs to the host, so the Clock page is read-only there: set up chrony on the host.
+        If the page says the servers can't be changed, re-run the installer so it can create the sources folder.</p>
+      </section>
+
       <section id="zabbix" data-manual-section>
-      <h2>8 · Zabbix</h2>
+      <h2>9 · Zabbix</h2>
       <p>Towerlog pushes with the Zabbix trapper protocol (TCP 10051). Download the template from <a href="/config#zabbix">Configuration → Zabbix</a>,
         import it on the Zabbix server (6.0 or newer) and attach it to a host whose name matches the <b>Host name</b> in Towerlog.</p>
       <ul>
@@ -151,13 +165,13 @@ const toc = [
       </section>
 
       <section id="email" data-manual-section>
-      <h2>9 · Email alerts</h2>
+      <h2>10 · Email alerts</h2>
       <p>Configure the SMTP server in <a href="/config#smtp">Configuration → Email</a>. Towerlog mails when an input raises or clears a fault (including how long it lasted),
         when free disk space drops below the alert level, and when the service starts or stops. Each kind has its own switch. Use <b>Send test email</b> after saving.</p>
       </section>
 
       <section id="snmp" data-manual-section>
-      <h2>10 · SNMP</h2>
+      <h2>11 · SNMP</h2>
       <p>The agent answers GET, GETNEXT and GETBULK (v2c and v3, read-only) and sends traps. Download the <b>TOWERLOG-MIB</b> from
         <a href="/config#snmp">Configuration → SNMP</a> (enterprise number 99999 is a placeholder: register your own before wide use).</p>
       <ul>
@@ -168,7 +182,7 @@ const toc = [
       </section>
 
       <section id="system" data-manual-section>
-      <h2>11 · System, files and commands</h2>
+      <h2>12 · System, files and commands</h2>
       <table>
         <thead><tr><th>Path</th><th>What</th></tr></thead>
         <tbody>
@@ -186,7 +200,7 @@ towerlog logs                # follow the service log</pre>
       </section>
 
       <section id="troubleshooting" data-manual-section>
-      <h2>12 · Troubleshooting</h2>
+      <h2>13 · Troubleshooting</h2>
       <dl>
         <dt>An HTTP input stays "down" with "Connection refused" or "Server returned 404".</dt>
         <dd>Open the URL in a browser or VLC from the Towerlog host. For a Barix, make sure it is streaming in server mode on that port. Check firewalls.</dd>

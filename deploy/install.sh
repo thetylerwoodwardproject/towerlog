@@ -5,7 +5,7 @@
 #   sudo ./deploy/install.sh --yes    no questions; accept the defaults
 #
 # What it does:
-#   1. installs ffmpeg and Node.js 22 (from nodejs.org if the system Node is older)
+#   1. installs ffmpeg, chrony (the clock) and Node.js 22 (from nodejs.org if the system Node is older)
 #   2. installs the app to /usr/local/lib/towerlog and builds it
 #   3. creates the "towerlog" service user, /etc/towerlog, /var/lib/towerlog, /var/log/towerlog
 #   4. sets the web UI password and installs and starts towerlog.service
@@ -47,8 +47,8 @@ command -v apt-get >/dev/null || die "this installer needs apt (Debian/Ubuntu); 
 step "System packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq ffmpeg curl ca-certificates xz-utils rsync >/dev/null
-ok "ffmpeg $(ffmpeg -version | head -n1 | awk '{print $3}')"
+apt-get install -y -qq ffmpeg chrony curl ca-certificates xz-utils rsync >/dev/null
+ok "ffmpeg $(ffmpeg -version | head -n1 | awk '{print $3}'), chrony $(chronyc -v 2>/dev/null | awk '{print $3}')"
 
 step "Node.js ${NODE_MAJOR}"
 NODE_BIN="$(command -v node || true)"
@@ -90,12 +90,25 @@ chown -R towerlog:towerlog "$CONF_DIR" "$DATA_DIR" "$LOG_DIR"
 chmod 750 "$CONF_DIR"
 ok "user towerlog; $CONF_DIR $DATA_DIR $LOG_DIR"
 
+step "Clock (chrony)"
+# Towerlog writes its NTP servers to a chrony sourcedir file; a path unit makes chrony re-read it.
+mkdir -p /etc/chrony/sources.d
+grep -Rqs '^sourcedir /etc/chrony/sources.d' /etc/chrony/chrony.conf || echo 'sourcedir /etc/chrony/sources.d' >> /etc/chrony/chrony.conf
+[ -f /etc/chrony/sources.d/towerlog.sources ] || printf '# Written by Towerlog (Configuration -> Clock).\n' > /etc/chrony/sources.d/towerlog.sources
+chown root:towerlog /etc/chrony/sources.d /etc/chrony/sources.d/towerlog.sources 2>/dev/null || true
+chmod 775 /etc/chrony/sources.d; chmod 664 /etc/chrony/sources.d/towerlog.sources
+install -m 644 "$SRC_DIR/deploy/towerlog-chrony.path" /etc/systemd/system/towerlog-chrony.path
+install -m 644 "$SRC_DIR/deploy/towerlog-chrony.service" /etc/systemd/system/towerlog-chrony.service
+systemctl enable --now chrony >/dev/null 2>&1 || systemctl enable --now chronyd >/dev/null 2>&1 || warn "could not start chrony"
+ok "chrony running; servers are set in Configuration -> Clock"
+
 step "Service and command"
 sed -e "s#@APP_DIR@#$APP_DIR#g" -e "s#@CONF_DIR@#$CONF_DIR#g" -e "s#@DATA_DIR@#$DATA_DIR#g" -e "s#@LOG_DIR@#$LOG_DIR#g" -e "s#@NODE@#$NODE_BIN#g" "$SRC_DIR/deploy/towerlog.service" > /etc/systemd/system/towerlog.service
 sed -e "s#@APP_DIR@#$APP_DIR#g" -e "s#@CONF_DIR@#$CONF_DIR#g" -e "s#@DATA_DIR@#$DATA_DIR#g" -e "s#@LOG_DIR@#$LOG_DIR#g" -e "s#@NODE@#$NODE_BIN#g" "$SRC_DIR/deploy/towerlog-cli" > /usr/local/bin/towerlog
 chmod 755 /usr/local/bin/towerlog
 install -m 644 "$SRC_DIR/deploy/logrotate.conf" /etc/logrotate.d/towerlog
 systemctl daemon-reload
+systemctl enable --now towerlog-chrony.path >/dev/null 2>&1 || true
 /usr/local/bin/towerlog init >/dev/null
 ok "towerlog.service installed; try: towerlog check"
 

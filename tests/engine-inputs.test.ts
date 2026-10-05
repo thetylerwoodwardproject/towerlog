@@ -95,3 +95,28 @@ describe('inputs in the engine', () => {
     }
   });
 });
+
+describe('clock settings in the engine', () => {
+  it('saves valid servers to config and the chrony file, and refuses bad ones', async () => {
+    const dir = path.join(tmpdir(), 'sources.d');
+    const fs = await import('node:fs');
+    fs.mkdirSync(dir, { recursive: true });
+    process.env.TOWERLOG_CHRONY_DIR = dir;
+    // clock.ts reads the folder when it is first loaded, so import a fresh copy for this folder
+    const { vi } = await import('vitest');
+    vi.resetModules();
+    const { Engine: Eng } = await import('../src/engine/index.ts');
+    const d = tmpdir();
+    const e = new Eng({ config: path.join(d, 'config.json'), data: path.join(d, 'data'), logs: path.join(d, 'logs') });
+    e.saveClock({ servers: 'pool.ntp.org, 10.1.1.1' });
+    expect(e.config.clock.servers).toEqual(['pool.ntp.org', '10.1.1.1']);
+    expect(fs.readFileSync(path.join(dir, 'towerlog.sources'), 'utf8')).toContain('server 10.1.1.1 iburst');
+    expect(() => e.saveClock({ servers: 'ok.example.com; reboot' })).toThrow(/not a host name/);
+    expect(e.config.clock.servers).toEqual(['pool.ntp.org', '10.1.1.1']);
+    e.saveClock({ servers: '' });
+    expect(e.config.clock.servers).toEqual([]);
+    const c = await e.clock();
+    expect(c.writable).toBe(true);
+    delete process.env.TOWERLOG_CHRONY_DIR;
+  });
+});

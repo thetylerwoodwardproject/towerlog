@@ -24,6 +24,7 @@ import { LogInput } from './inputs/input.ts';
 import { FaultLog } from './inputs/faultlog.ts';
 import { listChunks, purgeForSpace } from './inputs/record.ts';
 import { FAULT_LABEL } from './faults.ts';
+import { parseServers, readClock, sourcesWritable, writeSources, validNtpServer, type ClockSource, type ClockStatus } from './clock.ts';
 import { recName, recordingDir } from './recorder.ts';
 import { hashPassword, verifyPassword, signSession, verifySession, sessionNonce } from './auth.ts';
 
@@ -63,6 +64,7 @@ export class Engine {
   alerts!: AlertManager;
   toolPaths: Record<string, string | null> = {};
   latest: Snapshot | null = null;
+  private clockCache: { at: number; status: ClockStatus | null } = { at: 0, status: null };
   private disk: { at: number; value: { free_gb: number; total_gb: number } | null } = { at: 0, value: null };
   private timers: NodeJS.Timeout[] = [];
   private subscribers = new Set<(s: Snapshot) => void>();
@@ -134,6 +136,8 @@ export class Engine {
     if (!this.toolPaths.ffmpeg) this.log.warn('ffmpeg not found on this system: no input can run');
     this.store.onChange((c) => this.onConfigChange(c));
     this.syncInputs(this.config);
+    this.writeClockSources();
+    void this.refreshClock();
     this.alerts.serviceStarted(Object.fromEntries([...this.inputs.values()].map((i) => [i.cfg.name, i.status])));
     this.snmp.start(this.snmpSource);
     this.snmp.trap('serviceStarted', null, `Towerlog ${VERSION} started on ${os.hostname()} with ${this.inputs.size} input(s)`);
@@ -240,6 +244,7 @@ export class Engine {
         this.nextPurge = now + PURGE_SECS;
         this.purgeDisk(now);
       }
+      if (now - this.clockCache.at > 30) void this.refreshClock();
     } catch (e) {
       this.log.error(`supervisor: ${(e as Error).stack || e}`);
     }
@@ -348,6 +353,9 @@ export class Engine {
   warnings(): string[] {
     const w: string[] = [];
     if (!this.toolPaths.ffmpeg) w.push('ffmpeg is not installed: no input can record or play.');
+    const c = this.clockCache.status;
+    if (c?.available && !c.synchronized) w.push('The clock is not synchronised (chrony): recording times and fault times may be wrong. See Configuration → Clock.');
+    else if (c?.available && c.offset_ms !== null && Math.abs(c.offset_ms) > 500) w.push(`The clock is ${Math.round(c.offset_ms)} ms off its time source; recording times may be wrong. See Configuration → Clock.`);
     const d = this.diskInfo();
     const min = this.config.smtp.disk_min_gb;
     if (d && this.config.inputs.some((i) => i.record && i.enabled) && d.free_gb < min) w.push(`Only ${d.free_gb} GB free for recordings (alert level ${min} GB).`);
@@ -555,6 +563,37 @@ export class Engine {
       config_problems: this.store.problems,
       purge_min_free_gb: this.config.purge_min_free_gb,
     };
+  }
+
+  /** Re-write chrony's sources file from the saved list (a fresh host or a replaced file is repaired at start). */
+  private writeClockSources() {
+    const servers = this.config.clock.servers;
+    if (!servers.length || sourcesWritable()) return;
+    try { writeSources(servers); } catch (e) { this.log.warn(`clock: cannot write the chrony sources file: ${(e as Error).message}`); }
+  }
+
+  private async refreshClock() {
+    this.clockCache = { at: Date.now() / 1000, status: (await readClock()).status };
+  }
+
+  /** Clock page data: chrony's status and sources, the saved servers, and whether they can be changed here. */
+  async clock(): Promise<{ status: ClockStatus; sources: ClockSource[]; servers: string[]; writable: boolean; reason: string; time_zone: string }> {
+    const { status, sources } = await readClock();
+    this.clockCache = { at: Date.now() / 1000, status };
+    const reason = sourcesWritable();
+    return { status, sources, servers: this.config.clock.servers, writable: !reason, reason, time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+  }
+
+  /** Save the NTP servers (blank list = chrony's own defaults) and tell chrony. */
+  saveClock(input: { servers?: unknown }) {
+    const servers = parseServers(Array.isArray(input.servers) ? input.servers.map(String) : String(input.servers ?? ''));
+    for (const s of servers) if (!validNtpServer(s)) throw new HttpError(400, `${s} is not a host name or IP address`);
+    if (servers.length > 8) throw new HttpError(400, 'at most 8 NTP servers');
+    const why = sourcesWritable();
+    if (why) throw new HttpError(400, `the clock sources cannot be changed from here: ${why}`);
+    try { writeSources(servers); } catch (e) { throw new HttpError(500, (e as Error).message); }
+    this.store.update((c) => { c.clock.servers = servers; });
+    void this.refreshClock();
   }
 
   /** Disk watermark setting (GB that must stay free; 0 = off). */
