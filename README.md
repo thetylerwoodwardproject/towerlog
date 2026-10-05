@@ -22,6 +22,10 @@
 > Icecast, RTP and Livewire-format streams). Nothing has been verified yet against real Barix,
 > Inovonics or Livewire hardware.
 
+<p align="center">
+  <img src="docs/images/dashboard.png" alt="Towerlog dashboard: a card per input with status, fault chips, VU and peak meters and a recording indicator" width="900">
+</p>
+
 ## What it does
 
 | | |
@@ -32,7 +36,16 @@
 | 📟 **Email, SNMP and Zabbix** | SMTP alerts, an SNMP agent (v2c / v3) with traps and its own MIB, and a Zabbix trapper with a generated template |
 | 📊 **Live UI** | A card per input with VU and peak meters, fault chips, a listen-in player, recordings by day with playback and download, and the fault history |
 | 🧹 **Retention** | Keep-days per input, plus a disk watermark that deletes the oldest recordings first |
-| 🔁 **Icecast destination** | Any Icecast source client (ffmpeg, BUTT, Liquidsoap, an encoder) can push to Towerlog: each stream becomes a logged input |
+| 🔁 **Icecast push** | Any Icecast source client (ffmpeg, BUTT, Liquidsoap, an encoder) can push a stream to Towerlog and have it logged |
+
+## Screens
+
+| | |
+|---|---|
+| <img src="docs/images/faults.png" alt="Fault history across all inputs"> | <img src="docs/images/input-settings.png" alt="Input settings: source, recording and fault alert timing"> |
+| **Fault history**: every raise and clear, with how long it lasted | **Input settings**: source, file length, retention and alert timing (silence after 5 s to 10 min, or custom) |
+
+<p align="center"><img src="docs/images/mobile.png" alt="Towerlog on a phone" width="260"></p>
 
 ## Install
 
@@ -65,10 +78,10 @@ The container runs as the `node` user (uid 1000): the `./towerlog/*` folders mus
 
 Recordings are laid out as `<recordings>/<Input_name>/YYYY/MM/DD/<Input_name>_YYMMDD_HHMM.<ext>`.
 
-### Pushing a stream to Towerlog
+### Push inputs
 
-1. Add an **Icecast push** input in Towerlog with a mount (say `/kutx`) and a password.
-2. In the source client set the host to the Towerlog server, the port to Towerlog's source port, the source password to the one above and the mount to the same mount (for example `icecast://source:PASSWORD@host:8000/kutx` in ffmpeg).
+An **Icecast push** input gives Towerlog a mount and a password; anything that can act as an Icecast source (ffmpeg, BUTT, Liquidsoap, a hardware encoder) can then send to
+`icecast://source:PASSWORD@<server>:8000/<mount>`. The port is `source.port` in the config (default 8000).
 
 ## Faults and alerts
 

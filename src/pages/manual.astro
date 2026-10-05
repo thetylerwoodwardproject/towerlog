@@ -93,15 +93,11 @@ const toc = [
 
       <section id="push" data-manual-section>
       <h2>5 · Pushing a stream to Towerlog</h2>
-      <p>Towerlog is an Icecast destination. It speaks the Icecast source protocol (<code>SOURCE</code> and <code>PUT</code>, HTTP Basic login)
-        on its <b>source port</b> (default 8000, <code>source.port</code> in the config file).</p>
-      <ol class="steps">
-        <li>In Towerlog add an input of type <b>Icecast push</b>. Give it a mount (for example <code>/kutx</code>) and a password. The editor shows the host and port to use.</li>
-        <li>In the source client set the host to this Towerlog server, the port to Towerlog's source port, the password to the one you just set and the mount to the same mount (ffmpeg: <code>icecast://source:PASSWORD@host:8000/kutx</code>).</li>
-        <li>When the source connects the input goes <b>live</b> and starts recording. If the connection drops, the input shows <i>down</i> and a <i>Feed lost</i> fault is raised after the link delay.</li>
-      </ol>
-      <p>Each Towerlog push input accepts one source at a time; a new connection on the same mount replaces the old one, so an encoder that reconnects after a network
-        glitch is never locked out. Now-playing (metadata) updates are accepted and ignored. Other encoders (BUTT, Liquidsoap, ffmpeg) work the same way.</p>
+      <p>An <b>Icecast push</b> input has a mount (for example <code>/kutx</code>) and a password. Any Icecast source client (ffmpeg, BUTT, Liquidsoap, a hardware encoder)
+        can then send to <code>icecast://source:PASSWORD@host:8000/kutx</code>; the port is <code>source.port</code> in the config (default 8000).
+        The input goes <b>live</b> and records when the source connects, and raises <i>Feed lost</i> after the link delay if it drops.</p>
+      <p>Each push input accepts one source at a time; a new connection on the same mount replaces the old one, so an encoder that reconnects after a network
+        glitch is never locked out. Now-playing (metadata) updates are accepted and ignored.</p>
       </section>
 
       <section id="recording" data-manual-section>

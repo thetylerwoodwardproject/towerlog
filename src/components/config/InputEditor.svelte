@@ -97,7 +97,7 @@
       <Field label="Source password"><Input class={IN} type="password" bind:value={f.source_password} autocomplete="new-password" /></Field>
       <Field label="Stream codec"><FormSelect bind:value={f.stream_codec} options={[['mp3', 'MP3'], ['aac', 'AAC (ADTS)']]} /></Field>
       <p class="col-span-full text-xs text-muted-foreground">
-        In the source client set host <code class="font-mono">{host}</code>, port <code class="font-mono">{sourcePort}</code> and this password, and mount <code class="font-mono">{f.mount || '/fm1'}</code>.
+        Send any Icecast source to <code class="font-mono">icecast://source:PASSWORD@{host}:{sourcePort}{f.mount || '/mount'}</code>.
       </p>
     {/if}
   </div>
