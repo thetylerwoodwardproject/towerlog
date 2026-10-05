@@ -1,0 +1,12 @@
+[Unit]
+Description=Apply Towerlog network settings (netplan, systemd-networkd, ifupdown or dhcpcd)
+
+[Service]
+Type=oneshot
+# Root: writes the network stack's config. It re-validates every request itself,
+# backs up what it changes and arms a rollback timer (see src/engine/netapply.ts).
+Environment=TOWERLOG_NET_DIR=@DATA_DIR@/net
+ExecStart=@NODE@ @APP_DIR@/dist/towerlog-netapply.mjs
+PrivateTmp=true
+NoNewPrivileges=true
+TimeoutStartSec=120

@@ -9,8 +9,8 @@ PURGE=0
 [ "${1:-}" = "--purge" ] && PURGE=1
 
 systemctl disable --now towerlog 2>/dev/null || true
-systemctl disable --now towerlog-chrony.path 2>/dev/null || true
-rm -f /etc/systemd/system/towerlog-chrony.path /etc/systemd/system/towerlog-chrony.service /etc/chrony/sources.d/towerlog.sources
+systemctl disable --now towerlog-chrony.path towerlog-netapply.path 2>/dev/null || true
+rm -f /etc/systemd/system/towerlog-chrony.path /etc/systemd/system/towerlog-chrony.service /etc/systemd/system/towerlog-netapply.path /etc/systemd/system/towerlog-netapply.service /etc/polkit-1/rules.d/50-towerlog.rules /etc/NetworkManager/conf.d/10-towerlog-managed.conf /etc/chrony/sources.d/towerlog.sources
 rm -f /etc/systemd/system/towerlog.service /etc/logrotate.d/towerlog /usr/local/bin/towerlog
 systemctl daemon-reload
 rm -rf /usr/local/lib/towerlog

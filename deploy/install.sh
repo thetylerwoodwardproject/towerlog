@@ -3,6 +3,8 @@
 #
 #   sudo ./deploy/install.sh          install or upgrade (keeps your settings)
 #   sudo ./deploy/install.sh --yes    no questions; accept the defaults
+#   sudo ./deploy/install.sh --network-manager   also install NetworkManager and let it manage the interfaces
+#                                     (needed for Configuration -> Network on ifupdown/netplan hosts)
 #
 # What it does:
 #   1. installs ffmpeg, multimon-ng (EAS decoding), chrony (the clock) and Node.js 22 (from nodejs.org if the system Node is older)
@@ -25,10 +27,12 @@ NODE_MIN=22.12.0
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 YES=0
+NETWORK_MANAGER=0
 for a in "$@"; do
   case "$a" in
     -y|--yes) YES=1 ;;
-    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+    --network-manager) NETWORK_MANAGER=1 ;;
+    -h|--help) sed -n '2,17p' "$0"; exit 0 ;;
     *) echo "unknown option: $a" >&2; exit 2 ;;
   esac
 done
@@ -111,6 +115,67 @@ systemctl daemon-reload
 systemctl enable --now towerlog-chrony.path >/dev/null 2>&1 || true
 /usr/local/bin/towerlog init >/dev/null
 ok "towerlog.service installed; try: towerlog check"
+
+# ------------------------------------------------------------------ network settings
+# The web UI changes the network through NetworkManager (or, without it, the root
+# helper below), and host name / time through hostnamectl and timedatectl over D-Bus;
+# this polkit rule lets the towerlog user (only) do the D-Bus part.
+step "Network settings (Configuration -> Network)"
+if [ "$NETWORK_MANAGER" = 1 ] && ! systemctl is-active --quiet NetworkManager; then
+  warn "Installing NetworkManager and handing the interfaces over to it (your SSH session may drop briefly)"
+  apt-get install -y network-manager >/dev/null
+  # ifupdown-managed interfaces stay unmanaged unless NetworkManager is told otherwise.
+  mkdir -p /etc/NetworkManager/conf.d
+  printf '[ifupdown]\nmanaged=true\n' >/etc/NetworkManager/conf.d/10-towerlog-managed.conf
+  systemctl enable --now NetworkManager >/dev/null 2>&1 || true
+fi
+mkdir -p /etc/polkit-1/rules.d
+cat >/etc/polkit-1/rules.d/50-towerlog.rules <<'RULES'
+// Installed by Towerlog: network, host name and time settings from the web UI.
+polkit.addRule(function (action, subject) {
+  if (subject.user !== "towerlog") return polkit.Result.NOT_HANDLED;
+  if (action.id.indexOf("org.freedesktop.NetworkManager.") === 0) return polkit.Result.YES;
+  if (action.id === "org.freedesktop.hostname1.set-static-hostname" || action.id === "org.freedesktop.hostname1.set-hostname") return polkit.Result.YES;
+  if (action.id === "org.freedesktop.timedate1.set-timezone" || action.id === "org.freedesktop.timedate1.set-ntp") return polkit.Result.YES;
+  return polkit.Result.NOT_HANDLED;
+});
+RULES
+
+# Which network stack is in charge? NetworkManager is driven directly; the others
+# (headless servers, older Raspberry Pi OS) go through the root helper towerlog-netapply,
+# which the web UI reaches by dropping a request file (see src/engine/netapply.ts).
+detect_network_backend() {
+  if systemctl is-active --quiet NetworkManager 2>/dev/null; then echo nm; return; fi
+  if ls /etc/netplan/*.yaml /etc/netplan/*.yml >/dev/null 2>&1; then echo netplan; return; fi
+  if systemctl is-active --quiet systemd-networkd 2>/dev/null; then echo networkd; return; fi
+  if systemctl is-active --quiet dhcpcd 2>/dev/null; then echo dhcpcd; return; fi
+  if [ -f /etc/network/interfaces ] && grep -Eq '^[[:space:]]*iface[[:space:]]+[^[:space:]]+[[:space:]]+inet6?[[:space:]]' /etc/network/interfaces \
+     && grep -Ev '^[[:space:]]*iface[[:space:]]+lo[[:space:]]' /etc/network/interfaces | grep -Eq '^[[:space:]]*iface[[:space:]]'; then echo ifupdown; return; fi
+  echo none
+}
+NET_BACKEND="$(detect_network_backend)"
+printf '{"backend": "%s"}\n' "$NET_BACKEND" >"$CONF_DIR/network.json"
+chown root:root "$CONF_DIR/network.json"
+chmod 644 "$CONF_DIR/network.json"
+case "$NET_BACKEND" in
+  nm)       ok "network managed by NetworkManager" ;;
+  netplan)  ok "network managed by netplan (changes go to /etc/netplan/90-towerlog-<if>.yaml)" ;;
+  networkd) ok "network managed by systemd-networkd (changes go to /etc/systemd/network/05-towerlog-<if>.network)" ;;
+  dhcpcd)   ok "network managed by dhcpcd (changes go to a marked block in /etc/dhcpcd.conf)" ;;
+  ifupdown) ok "network managed by ifupdown (changes go to /etc/network/interfaces.d/towerlog-<if>)" ;;
+  *)        warn "no supported network stack found: Configuration → Network is view-only (re-run with --network-manager to use NetworkManager)" ;;
+esac
+install -d -m 755 -o towerlog -g towerlog "$DATA_DIR/net"
+install -d -m 700 -o root -g root /var/lib/towerlog-netapply
+for unit in towerlog-netapply.path towerlog-netapply.service ; do
+  sed -e "s|@APP_DIR@|$APP_DIR|g" -e "s|@NODE@|$NODE_BIN|g" -e "s|@CONF_DIR@|$CONF_DIR|g" -e "s|@DATA_DIR@|$DATA_DIR|g" "$SRC_DIR/deploy/$unit" >"/etc/systemd/system/$unit"
+done
+systemctl daemon-reload
+if [ "$NET_BACKEND" != nm ] && [ "$NET_BACKEND" != none ]; then
+  systemctl enable --now towerlog-netapply.path >/dev/null 2>&1 && ok "network helper ready (towerlog-netapply.path)" || warn "could not enable towerlog-netapply.path"
+else
+  systemctl disable --now towerlog-netapply.path >/dev/null 2>&1 || true
+fi
 
 step "Web UI password"
 if sudo -u towerlog env TOWERLOG_CONFIG="$CONF_DIR/config.json" TOWERLOG_DATA="$DATA_DIR" TOWERLOG_LOG_DIR="$LOG_DIR" "$NODE_BIN" "$APP_DIR/dist/towerlog.mjs" has-password; then

@@ -1,0 +1,10 @@
+[Unit]
+Description=Towerlog network settings requests (no NetworkManager)
+
+[Path]
+# The web UI drops a request here; towerlog-netapply consumes (deletes) it.
+PathExists=@DATA_DIR@/net/request.json
+Unit=towerlog-netapply.service
+
+[Install]
+WantedBy=multi-user.target

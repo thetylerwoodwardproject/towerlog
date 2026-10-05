@@ -11,12 +11,13 @@
   import ServiceForms from './ServiceForms.svelte';
   import SystemPanel from './SystemPanel.svelte';
   import ClockPanel from './ClockPanel.svelte';
+  import NetworkPanel from './NetworkPanel.svelte';
   import CreditsPanel from './CreditsPanel.svelte';
   import Section from './Section.svelte';
 
   type Config = { inputs: InputForm[]; source: { port: number } } & Record<string, Record<string, unknown>>;
   const SECTIONS = [
-    ['inputs', 'Inputs'], ['zabbix', 'Zabbix'], ['smtp', 'Email'], ['snmp', 'SNMP'], ['clock', 'Clock'], ['system', 'System'], ['credits', 'Credits'],
+    ['inputs', 'Inputs'], ['zabbix', 'Zabbix'], ['smtp', 'Email'], ['snmp', 'SNMP'], ['network', 'Network'], ['clock', 'Clock'], ['system', 'System'], ['credits', 'Credits'],
   ] as const;
   type Tab = (typeof SECTIONS)[number][0];
   const fromHash = (): Tab => {
@@ -80,6 +81,8 @@
             <p class="rounded-lg border px-4 py-12 text-center text-sm text-muted-foreground">No inputs yet — click <b class="font-medium text-foreground">Add input</b>.</p>
           {/if}
         </Section>
+      {:else if tab === 'network'}
+        <NetworkPanel />
       {:else if tab === 'clock'}
         <ClockPanel />
       {:else if tab === 'system'}
