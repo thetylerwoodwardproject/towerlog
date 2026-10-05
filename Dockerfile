@@ -8,7 +8,7 @@ COPY . .
 RUN npm run build && npm prune --omit=dev --no-audit --no-fund
 
 FROM node:22-bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg multimon-ng ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/node_modules ./node_modules

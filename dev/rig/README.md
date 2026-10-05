@@ -8,6 +8,7 @@
 | Studio B | digital silence, 5 s delay | silence fault |
 | Hot Mic | clipped at full scale | clipping fault |
 | Mono Feed / Phase Feed | identical / inverted channels | mono and phase faults |
+| Air Chain | quiet tone, then a SAME Required Weekly Test about every 45 s | EAS tone, decoded message, EAS log (needs multimon-ng on PATH) |
 | Dead Barix | refused connection | feed lost |
 | Push KUTX | an ffmpeg Icecast push to the source port | the Icecast source (push) path |
 

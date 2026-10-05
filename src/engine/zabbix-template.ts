@@ -52,6 +52,7 @@ ${i}</${o.tag}>`;
 const LABELS: Record<string, string> = {
   state: 'state', up: 'up', name: 'name', kind: 'type', recording: 'recording', level: 'audio level',
   'fault.link': 'feed lost', 'fault.silence': 'silence', 'fault.clip': 'clipping', 'fault.mono': 'mono', 'fault.phase': 'out of phase',
+  eas: 'EAS attention tone', 'eas.message': 'EAS message',
 };
 
 const key = (m: string) => `towerlog.input.${m}[{#INPUT}]`;
@@ -65,6 +66,8 @@ const INPUT_TRIGGERS: Record<string, Trig[]> = {
   'fault.clip': fault('clip', 'clipping', 'WARNING', 'The audio has been at full scale longer than the clipping delay set in Towerlog.'),
   'fault.mono': fault('mono', 'mono (left and right identical)', 'WARNING', 'Left and right are identical for longer than the delay set in Towerlog.'),
   'fault.phase': fault('phase', 'channels out of phase', 'WARNING', 'Left and right are out of phase for longer than the delay set in Towerlog.'),
+  eas: [{ id: 'ptrig:eas', expr: `last(/${T}/${key('eas')})=1`, name: 'EAS attention tone heard on {#NAME}', priority: 'HIGH', desc: 'The EAS/SAME attention tone (853+960 Hz) was heard on this input. Auto-recovers when the item drops back to 0.' }],
+  'eas.message': [{ id: 'ptrig:easmsg', expr: `change(/${T}/${key('eas.message')})<>0`, name: 'EAS message on {#NAME}: {ITEM.LASTVALUE1}', priority: 'HIGH', desc: 'A new EAS/SAME message was decoded on this input (stays open until the next message).' }],
 };
 
 export function buildTemplate(date = new Date()): string {
@@ -72,7 +75,9 @@ export function buildTemplate(date = new Date()): string {
   const P = '                        ';
   const globalItems = [
     itemXml({ id: 'item:event', tag: 'item', name: 'Towerlog event', key: 'towerlog.event', kind: 'text', indent: I,
-      desc: 'Last fault event pushed by Towerlog (feed lost, silence, clipping, mono, phase, and their clears).' }),
+      desc: 'Last event pushed by Towerlog (feed lost, silence, clipping, mono, phase and their clears, EAS tones and messages).' }),
+    itemXml({ id: 'item:eas', tag: 'item', name: 'Towerlog EAS attention tone (any input)', key: 'towerlog.eas', kind: 'uint', indent: I,
+      desc: 'Set to 1 for about 10 seconds when the EAS attention tone is heard on any input, then reset to 0.' }),
     itemXml({ id: 'item:inputs_live', tag: 'item', name: 'Towerlog inputs live', key: 'towerlog.inputs_live', kind: 'uint', indent: I,
       desc: 'Number of inputs currently delivering audio.',
       triggers: [{ id: 'trigger:no inputs', expr: `last(/${T}/towerlog.inputs_live)=0`, name: 'Towerlog: no inputs live', priority: 'WARNING', desc: 'Zero inputs are currently delivering audio.' }] }),

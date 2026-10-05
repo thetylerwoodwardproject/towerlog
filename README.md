@@ -33,6 +33,7 @@
 | 🎙️ **Many source types** | a stream URL Towerlog connects to (Barix units in server mode, Inovonics 541 / 551 / 525 / 677 streams, Icecast, Shoutcast), RTP unicast and multicast, Livewire channels, and encoders that connect in and send to Towerlog |
 | 🕐 **Clock-aligned recording** | 15, 30 or 60 minute files that always start on the clock (top of the hour, :15, :30, :45). The original codec is copied, never re-encoded; linear audio is stored as FLAC |
 | 🚨 **Fault detection** | Feed lost, silence (alert after 5 s, 10 s, 30 s, 1 min, 2 min, 5 min, 10 min or any custom time), clipping, mono and out-of-phase, each with its own delay; every raise and clear is logged |
+| 🚨 **EAS alerts** | Hears the EAS attention tone on every input and decodes the SAME header (event, areas, sender, validity) with multimon-ng. Each alert goes to an EAS log with the recording file that holds it, and out by email, SNMP and Zabbix |
 | 📟 **Email, SNMP and Zabbix** | SMTP alerts, an SNMP agent (v2c / v3) with traps and its own MIB, and a Zabbix trapper with a generated template |
 | 📊 **Live UI** | A card per input with VU and peak meters, fault chips, a listen-in player, recordings by day with playback and download, and the fault history |
 | 🕰️ **Clock** | chrony keeps the host clock right (NTP servers set in the UI); the dashboard warns if it drifts or loses sync, since file times depend on it |
@@ -56,7 +57,7 @@
 sudo ./deploy/install.sh
 ```
 
-It installs ffmpeg, chrony and Node.js 22, builds the app into `/usr/local/lib/towerlog`, creates the `towerlog` user, asks for a web password and starts `towerlog.service`.
+It installs ffmpeg, multimon-ng, chrony and Node.js 22, builds the app into `/usr/local/lib/towerlog`, creates the `towerlog` user, asks for a web password and starts `towerlog.service`.
 Then open `http://<server>:8090` and add inputs under **Configuration → Inputs**. Settings are in `/etc/towerlog/config.json`, recordings in `/var/lib/towerlog/recordings`.
 
 **Docker** (use host networking for multicast):
@@ -105,6 +106,11 @@ SNMP traps (`towerlogInputFault` / `towerlogInputCleared`) and Zabbix (`fault.<k
 Zabbix and SNMP also publish per-input status, level and recording state; the template and MIB are generated from the code
 (`towerlog zabbix-template`, `towerlog snmp-mib`, or the download buttons in the UI). The SNMP enterprise number 99999 is a placeholder.
 
+### EAS
+
+Each input listens for the 853 + 960 Hz attention tone (built in) and decodes SAME headers with [multimon-ng](https://github.com/EliasOenal/multimon-ng) (installed by `deploy/install.sh` and the Docker image; without it only the tone is logged and the dashboard says so). Per input, **EAS alerts** switches it off.
+Heard alerts are kept in `<data>/eas/messages.jsonl`, shown on the **EAS log** page (filter, CSV, which recording file and where in it), and sent as email, SNMP traps (`towerlogEasTone`, `towerlogEasMessage` with the decoded fields) and Zabbix items (`towerlog.eas`, `towerlog.input.eas[…]`, `towerlog.input.eas.message[…]`). An alert is not a fault: it does not stop recording.
+
 ## Command line
 
 ```sh
@@ -143,17 +149,18 @@ stream has no Content-Length and Node's HTTP parser can't be used.
 
 ```sh
 npm install
-npm test                      # vitest: detectors, faults, config, recording, SNMP, Zabbix, runtime against real ffmpeg
+npm test                      # vitest: detectors, faults, EAS, config, recording, SNMP, Zabbix, runtime against real ffmpeg
 npm run check                 # astro check + tsc
 npm run build                 # dist/towerlog.mjs
 dev/rig/ctl.sh start          # run it with fake feeds on http://127.0.0.1:18091 (see dev/rig/README.md)
 ```
 
-Some tests start `ffmpeg` and take a few seconds; they are skipped if ffmpeg is missing. The multicast Livewire test is skipped when the
+Some tests start `ffmpeg` and take a few seconds; they are skipped if ffmpeg is missing. The EAS tests that decode a SAME header through a live feed need `multimon-ng` (or `MULTIMON_NG=/path/to/multimon-ng`) and are skipped without it. The multicast Livewire test is skipped when the
 loopback interface has no multicast flag: set `TL_MC_ADDR` to another interface's address to run it.
 
 ## Not done yet
 
+- EAS has only been tried against SAME audio that Towerlog itself generated (clean, and through an MP3 round trip). Not yet tried: a real EAS test off a Barix/Inovonics feed or NOAA Weather Radio, heavily compressed or noisy feeds, and EAS tones well below the program level.
 - Real-hardware verification: Barix 100 / 500, Inovonics, Livewire, and which stream mode and codec each unit emits.
 - SNMP polling of the Inovonics / Barix units themselves (health, temperature).
 - Roles and multiple users (there is one web password), time-range export as a single file, and a timeline view of faults over recordings.

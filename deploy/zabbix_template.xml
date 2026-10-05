@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <zabbix_export>
     <version>6.0</version>
-    <date>2026-10-05T00:31:31Z</date>
+    <date>2026-10-05T17:00:04Z</date>
     <groups>
         <group>
             <uuid>4ea5d5f54deb471981dd95e19fdc29ae</uuid>
@@ -29,7 +29,18 @@
                     <history>7d</history>
                     <trends>0</trends>
                     <value_type>TEXT</value_type>
-                    <description>Last fault event pushed by Towerlog (feed lost, silence, clipping, mono, phase, and their clears).</description>
+                    <description>Last event pushed by Towerlog (feed lost, silence, clipping, mono, phase and their clears, EAS tones and messages).</description>
+                </item>
+                <item>
+                    <uuid>240fe6f7c1104ec79a35d2ea666e2313</uuid>
+                    <name>Towerlog EAS attention tone (any input)</name>
+                    <type>TRAP</type>
+                    <key>towerlog.eas</key>
+                    <delay>0</delay>
+                    <history>31d</history>
+                    <trends>365d</trends>
+                    <value_type>UNSIGNED</value_type>
+                    <description>Set to 1 for about 10 seconds when the EAS attention tone is heard on any input, then reset to 0.</description>
                 </item>
                 <item>
                     <uuid>d428448c78264fa4a03c94cb662dd5e5</uuid>
@@ -249,6 +260,46 @@
                                     <name>{#NAME}: channels out of phase</name>
                                     <priority>WARNING</priority>
                                     <description>Left and right are out of phase for longer than the delay set in Towerlog.</description>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                        <item_prototype>
+                            <uuid>96afc6d78eb345838116562c828a40bf</uuid>
+                            <name>{#NAME}: EAS attention tone</name>
+                            <type>TRAP</type>
+                            <key>towerlog.input.eas[{#INPUT}]</key>
+                            <delay>0</delay>
+                            <history>31d</history>
+                            <trends>365d</trends>
+                            <value_type>UNSIGNED</value_type>
+                            <description>1 for about 10 seconds when the EAS attention tone is heard</description>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <uuid>e6a57ca00a864945841eb4e3d0aff8ad</uuid>
+                                    <expression>last(/Towerlog/towerlog.input.eas[{#INPUT}])=1</expression>
+                                    <name>EAS attention tone heard on {#NAME}</name>
+                                    <priority>HIGH</priority>
+                                    <description>The EAS/SAME attention tone (853+960 Hz) was heard on this input. Auto-recovers when the item drops back to 0.</description>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                        <item_prototype>
+                            <uuid>42df56f198cf4bfbb8cb664b2ac8cbf2</uuid>
+                            <name>{#NAME}: EAS message</name>
+                            <type>TRAP</type>
+                            <key>towerlog.input.eas.message[{#INPUT}]</key>
+                            <delay>0</delay>
+                            <history>7d</history>
+                            <trends>0</trends>
+                            <value_type>TEXT</value_type>
+                            <description>Last decoded EAS/SAME message (event, areas, sender)</description>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <uuid>cc47da6ba15647d89dec496a5d4e64a2</uuid>
+                                    <expression>change(/Towerlog/towerlog.input.eas.message[{#INPUT}])&lt;&gt;0</expression>
+                                    <name>EAS message on {#NAME}: {ITEM.LASTVALUE1}</name>
+                                    <priority>HIGH</priority>
+                                    <description>A new EAS/SAME message was decoded on this input (stays open until the next message).</description>
                                 </trigger_prototype>
                             </trigger_prototypes>
                         </item_prototype>

@@ -1,7 +1,8 @@
-// Emails that are not input faults: low recording disk space and service start/stop.
+// Emails that are not input faults: EAS tones and messages, low recording disk space and service start/stop.
 // (Input faults are debounced by FaultTracker and mailed straight from the engine.)
 import fs from 'node:fs';
 import type { Mailer } from './mailer.ts';
+import type { EasEntry } from './eas-log.ts';
 
 export function fmtDuration(seconds: number): string {
   const s = Math.max(0, Math.trunc(seconds));
@@ -36,6 +37,27 @@ export class AlertManager {
   constructor(public mailer: Mailer, private diskUsage: DiskUsage = defaultDiskUsage) {}
 
   private get m() { return this.mailer; }
+
+  /** The EAS attention tone was heard on an input. */
+  eas(input: string, now: number) {
+    if (!(this.m.enabled && this.m.conf.alert_eas)) return;
+    this.m.send(`EAS attention tone heard on ${input}`,
+      `The EAS attention tone (853 Hz + 960 Hz) was detected on ${input} at ${fmtTime(now)}.\n\n` +
+      'See the EAS log in Towerlog for the decoded message and the recording that holds the audio.');
+  }
+
+  /** A decoded SAME header: the full message. */
+  easMessage(input: string, e: EasEntry) {
+    if (!(this.m.enabled && this.m.conf.alert_eas) || e.kind !== 'message') return;
+    const areas = (e.locations ?? []).map((l) => `  ${l.code}  ${l.county === '000' ? `all of ${l.state}` : `${l.part} ${l.state}, county FIPS ${l.county}`}`).join('\n');
+    const dur = e.duration_min ?? 0;
+    this.m.send(`EAS ${e.event_name} heard on ${input}`,
+      `${e.event_name} (${e.event}) from ${e.originator_name} (${e.sender})\n\n` +
+      `Heard on: ${input} at ${fmtTime(Date.parse(e.received) / 1000)}\n` +
+      `Issued: ${e.issued ? new Date(e.issued).toUTCString() : 'unknown'}\n` +
+      `Valid for: ${Math.floor(dur / 60)}h ${dur % 60}m\n` +
+      `Areas:\n${areas}\n\nRaw header: ${e.raw}`);
+  }
 
   checkDisk(now: number, path: string, recording: boolean) {
     const m = this.m;

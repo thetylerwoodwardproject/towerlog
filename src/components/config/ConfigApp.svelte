@@ -44,7 +44,7 @@
       id: '', name: `Input ${(config?.inputs.length ?? 0) + inputDrafts.length + 1}`, enabled: true, kind: 'http',
       url: '', address: '', port: 5004, rtp_codec: 'l24', rtp_payload: 96, rtp_rate: 48000, channels: 2, stream_codec: 'mp3', livewire_channel: 1,
       mount: '', source_password: '', chunk_minutes: 60, record: true, keep_days: 30,
-      silence_db: -50, silence_secs: 30, link_secs: 5, clip_secs: 10, mono_secs: 30, detect_clip: true, detect_mono: false,
+      silence_db: -50, silence_secs: 30, link_secs: 5, clip_secs: 10, mono_secs: 30, detect_clip: true, detect_mono: false, detect_eas: true,
     };
   }
   const liveInput = (id: string) => live.snapshot?.inputs.find((i) => i.id === id);

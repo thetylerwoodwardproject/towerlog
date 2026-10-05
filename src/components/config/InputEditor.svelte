@@ -5,7 +5,7 @@
     stream_codec: 'mp3' | 'aac' | 'other'; livewire_channel: number; mount: string; source_password: string;
     chunk_minutes: 15 | 30 | 60; record: boolean; keep_days: number;
     silence_db: number; silence_secs: number; link_secs: number; clip_secs: number; mono_secs: number;
-    detect_clip: boolean; detect_mono: boolean;
+    detect_clip: boolean; detect_mono: boolean; detect_eas: boolean;
   }
 </script>
 
@@ -135,6 +135,7 @@
       {#if f.detect_clip}<Field label="Clipping delay (s)" class="w-48"><Input class={IN} type="number" min="1" max="3600" bind:value={f.clip_secs} /></Field>{/if}
       <Toggle bind:checked={f.detect_mono} label="Mono and phase" hint="Left and right identical, or out of phase" />
       {#if f.detect_mono}<Field label="Mono / phase delay (s)" class="w-48"><Input class={IN} type="number" min="1" max="3600" bind:value={f.mono_secs} /></Field>{/if}
+      <Toggle bind:checked={f.detect_eas} label="EAS alerts" hint="Listen for the EAS attention tone and decode SAME messages (needs multimon-ng); logged on the EAS log page" />
     </div>
   </div>
 

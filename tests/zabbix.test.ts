@@ -51,6 +51,8 @@ describe('template', () => {
   it('has every input metric as an item prototype and a trigger per fault', () => {
     for (const m of Object.keys(INPUT_METRICS)) expect(xml).toContain(`<key>towerlog.input.${m}[{#INPUT}]</key>`);
     expect(xml).toContain('<key>towerlog.inputs.discovery</key>');
+    expect(xml).toContain('<key>towerlog.eas</key>');
+    for (const k of ['EAS attention tone heard on {#NAME}', 'EAS message on {#NAME}']) expect(xml).toContain(k);
     for (const k of ['feed lost', 'silence (dead air)', 'clipping', 'out of phase']) expect(xml).toContain(`{#NAME}: ${k}`);
   });
   it('has unique UUIDs', () => {

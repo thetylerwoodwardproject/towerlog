@@ -68,6 +68,7 @@
           <Field label="Event key"><Input class={IN} bind:value={f.key_event} /></Field>
           <Field label="Inputs-live key"><Input class={IN} bind:value={f.key_active} /></Field>
           <Field label="Heartbeat key"><Input class={IN} bind:value={f.key_heartbeat} /></Field>
+          <Field label="EAS tone key"><Input class={IN} bind:value={f.key_eas} /></Field>
         </div>
       </details>
     </Panel>
@@ -100,6 +101,7 @@
     <Panel title="Notify on">
       {#each [
         ['alert_input', 'Input faults raised / cleared'],
+        ['alert_eas', 'EAS tones and messages'],
         ['alert_disk', 'Low recording disk space'],
         ['alert_service', 'Service started / stopped'],
       ] as [k, label] (k)}
@@ -160,6 +162,7 @@
     <Panel title="Send traps on">
       {#each [
         ['trap_input', 'Input fault raised / cleared'],
+        ['trap_eas', 'EAS tones and messages'],
         ['trap_disk', 'Low recording disk space'],
         ['trap_service', 'Service started / stopped'],
       ] as [k, label] (k)}

@@ -7,6 +7,7 @@
     { "id": "hot-mic", "name": "Hot Mic", "kind": "http", "url": "http://127.0.0.1:18100/hot", "clip_secs": 3 },
     { "id": "mono-feed", "name": "Mono Feed", "kind": "http", "url": "http://127.0.0.1:18100/mono", "detect_mono": true, "mono_secs": 5 },
     { "id": "phase-feed", "name": "Phase Feed", "kind": "http", "url": "http://127.0.0.1:18100/phase", "detect_mono": true, "mono_secs": 5 },
+    { "id": "air-chain", "name": "Air Chain", "kind": "http", "url": "http://127.0.0.1:18100/eas", "chunk_minutes": 15 },
     { "id": "dead-barix", "name": "Dead Barix", "kind": "http", "url": "http://127.0.0.1:1/none", "link_secs": 3 },
     { "id": "push-kutx", "name": "Push KUTX", "kind": "push", "mount": "/kutx", "source_password": "pw" }
   ]

@@ -7,6 +7,8 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import type { Readable, Writable } from 'node:stream';
 import type { FaultRecord, InputSnapshot, InputStatus } from '../../lib/types.ts';
 import { int16View } from './pcm.ts';
+import { EasDetector } from './eas-tone.ts';
+import { SameDecoder, type SameMessage } from './same.ts';
 import type { InputConfig } from '../config.ts';
 import { DEFAULT_FAULT_RULES, FaultTracker, type FaultEvent, type FaultKind } from '../faults.ts';
 import type { Logger } from '../logger.ts';
@@ -26,6 +28,12 @@ export interface InputContext {
   onFault?: (rec: FaultRecord) => void;
   /** ffmpeg binary, overridable for tests. */
   bin?: string;
+  /** multimon-ng binary for SAME header decoding, or null: the attention tone is still detected. */
+  multimonBin?: string | null;
+  /** EAS attention tone started (active) or ended on this input. */
+  onEasTone?: (input: LogInput, active: boolean) => void;
+  /** A SAME header was decoded (msg), or its end-of-message was heard (null). */
+  onSame?: (input: LogInput, msg: SameMessage | null) => void;
 }
 
 /** Most audio the meter queue may hold: 3 s of the metering format. */
@@ -64,6 +72,8 @@ export class LogInput {
   private pushStream: Readable | null = null;
   /** Browser listeners: each gets its own MP3 encoder fed from the same PCM, only while it listens. */
   private listeners = new Set<ChildProcess>();
+  private eas: EasDetector | null = null;
+  private same: SameDecoder | null = null;
 
   constructor(public cfg: InputConfig, private ctx: InputContext) {
     this.tracker = new FaultTracker(cfg.id, {
@@ -103,6 +113,7 @@ export class LogInput {
     this.proc = null;
     this.pushStream?.unpipe();
     this.pushStream = null;
+    this.stopEas();
     if (p) await p.stop();
     for (const l of this.listeners) l.kill('SIGKILL');
     this.setStatus('stopped', '');
@@ -120,6 +131,7 @@ export class LogInput {
     this.pushStream = null;
     s?.unpipe();
     s?.destroy();
+    this.stopEas();
     void this.proc?.stop();
   }
 
@@ -140,6 +152,27 @@ export class LogInput {
   }
 
   get listenerCount() { return this.listeners.size; }
+
+  /** EAS listening lasts as long as one ffmpeg run: a tone cannot span a reconnect. */
+  private startEas() {
+    this.stopEas();
+    if (!this.cfg.detect_eas) return;
+    this.eas = new EasDetector(METER_RATE, METER_CHANNELS, () => this.ctx.onEasTone?.(this, true), () => this.ctx.onEasTone?.(this, false));
+    if (this.ctx.multimonBin) {
+      this.same = new SameDecoder(this.ctx.multimonBin, METER_RATE, METER_CHANNELS, this.ctx.log, (m) => this.ctx.onSame?.(this, m), () => this.ctx.onSame?.(this, null));
+      this.same.start();
+    }
+  }
+
+  private stopEas() {
+    this.eas?.finish();
+    this.eas = null;
+    this.same?.stop();
+    this.same = null;
+  }
+
+  /** True while the attention tone is being heard. */
+  get easActive() { return !!this.eas?.active; }
 
   private setStatus(s: InputStatus, detail: string) {
     this.status = s;
@@ -170,12 +203,15 @@ export class LogInput {
       (p) => this.onExit(p),
     );
     this.proc = proc;
+    this.startEas();
     proc.child.stdout?.on('data', (d: Buffer) => {
       if (this.proc !== proc) return;
       const whole = this.aligner.push(d);
       if (!whole) return;
       const pcm = int16View(whole);
       this.stats.push(pcm);
+      this.eas?.push(pcm);
+      this.same?.push(pcm);
       this.meterQueue.push(pcm.slice());
       this.meterQueued += pcm.length;
       // Never fall more than 3 s behind the feed: drop the oldest.
@@ -198,6 +234,7 @@ export class LogInput {
         if (this.proc === proc) {
           this.proc = null;
           this.upSince = null;
+          this.stopEas();
           this.setStatus('down', 'source disconnected');
         }
       });
@@ -208,6 +245,7 @@ export class LogInput {
     if (this.proc !== p) return;
     this.proc = null;
     this.upSince = null;
+    this.stopEas();
     this.setStatus('down', p.describe());
     this.pushStream?.unpipe();
     this.pushStream = null;
@@ -288,6 +326,7 @@ export class LogInput {
         ? { peak_db: (this.display ?? this.last)!.peak_db, rms_db: (this.display ?? this.last)!.rms_db }
         : { peak_db: [-90, -90], rms_db: [-90, -90] },
       faults: this.tracker.active(),
+      eas_active: this.easActive,
       silent_s: this.silentSince === null ? 0 : Math.max(0, Math.floor(now - this.silentSince)),
       recording: this.recording && this.status === 'live',
       chunk_minutes: this.cfg.chunk_minutes,

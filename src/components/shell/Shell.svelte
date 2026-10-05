@@ -8,6 +8,7 @@
   import AudioLines from '@lucide/svelte/icons/audio-lines';
   import BookOpen from '@lucide/svelte/icons/book-open';
   import Settings from '@lucide/svelte/icons/settings';
+  import Siren from '@lucide/svelte/icons/siren';
   import { Toaster } from '$lib/components/ui/sonner/index.js';
   import * as Sheet from '$lib/components/ui/sheet/index.js';
   import * as Tooltip from '$lib/components/ui/tooltip/index.js';
@@ -21,7 +22,7 @@
   import Logo from '../common/Logo.svelte';
   import PlayerBar from './PlayerBar.svelte';
 
-  type Page = 'inputs' | 'manual' | 'config';
+  type Page = 'inputs' | 'eas' | 'manual' | 'config';
   let { page, crumbs = [], selected = '', actions, children }: {
     page: Page;
     /** Breadcrumb: section, then page (the last one is emphasised). */
@@ -37,6 +38,7 @@
   const snap = $derived(live.snapshot);
   const health = $derived(snap ? serviceHealth(snap.services) : []);
   const pages = [
+    { id: 'eas', href: '/eas', label: 'EAS log', short: 'EAS', icon: Siren },
     { id: 'manual', href: '/manual', label: 'Manual', short: 'Manual', icon: BookOpen },
     { id: 'config', href: '/config', label: 'Configuration', short: 'Config', icon: Settings },
   ] as const;
@@ -67,6 +69,7 @@
         class="flex items-center gap-2.5 rounded-md p-2 text-[13px] font-medium {page === p.id ? 'bg-muted text-foreground' : 'text-subtle hover:bg-muted hover:text-foreground'}">
         {#if compact}<p.icon class="size-4" />{/if}
         <span class="flex-1">{p.label}</span>
+        {#if p.id === 'eas' && snap?.eas.active}<span class="size-1.5 rounded-full bg-bad" title="EAS tone being heard"></span>{/if}
       </a>
     {/each}
   </div>
@@ -155,11 +158,12 @@
   <!-- Phone: player above a bottom tab bar. -->
   <div class="fixed inset-x-0 bottom-0 z-30 flex flex-col md:hidden">
     <PlayerBar class="mx-2 mb-2 shadow-lg shadow-black/50" volume={false} />
-    <nav class="grid h-14 grid-cols-3 border-t bg-background pb-[env(safe-area-inset-bottom)]" aria-label="Sections">
+    <nav class="grid h-14 grid-cols-4 border-t bg-background pb-[env(safe-area-inset-bottom)]" aria-label="Sections">
       <a href="/" class="flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium {page === 'inputs' ? 'text-foreground' : 'text-muted-foreground'}"><AudioLines class="size-[18px]" />Inputs</a>
       {#each pages as p (p.id)}
         <a href={p.href} class="relative flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium {page === p.id ? 'text-foreground' : 'text-muted-foreground'}">
           <p.icon class="size-[18px]" />{p.short}
+          {#if p.id === 'eas' && snap?.eas.active}<span class="absolute top-2 right-[calc(50%-14px)] size-1.5 rounded-full bg-bad"></span>{/if}
         </a>
       {/each}
     </nav>

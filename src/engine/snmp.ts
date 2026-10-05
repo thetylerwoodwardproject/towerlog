@@ -9,10 +9,11 @@ import type { Agent, Mib, Session, User, Varbind } from 'net-snmp';
 import type { SnmpConfig, TrapTarget } from './config.ts';
 import type { Logger } from './logger.ts';
 import type { Snapshot } from '../lib/types.ts';
+import type { EasEntry } from './eas-log.ts';
 import { makeAllow } from './allow.ts';
 import {
-  INPUT_COLUMNS, KIND, NO_VALUE, SEVERITY, STATUS, SYSTEM, TRAPS, TRAP_OBJECTS,
-  inputTableOid, sysOid, trapObjOid, trapOid,
+  EAS_LAST, INPUT_COLUMNS, KIND, NO_VALUE, SEVERITY, STATUS, SYSTEM, TRAPS, TRAP_OBJECTS,
+  easOid, inputTableOid, sysOid, trapObjOid, trapOid,
   type ColumnDef, type TrapCategory, type TrapName,
 } from './snmp-mib.ts';
 
@@ -26,6 +27,7 @@ export function engineIdFor(hostname = os.hostname()): string {
 
 const tenths = (db: number | null | undefined) => (db == null || !Number.isFinite(db) || db <= -89.9 ? NO_VALUE : Math.round(db * 10));
 const str = (s: unknown) => String(s ?? '').slice(0, 255);
+const area = (l: { state: string; county: string; part: string }) => (l.county === '000' ? `${l.state} (all)` : `${l.part !== 'all' ? l.part + ' ' : ''}${l.state} ${l.county}`);
 const STATUS_ENUM: Record<string, number> = { stopped: STATUS.stopped, connecting: STATUS.connecting, live: STATUS.live, down: STATUS.down };
 
 export interface SnmpStatus {
@@ -48,7 +50,7 @@ export class SnmpService {
   private agent: Agent | null = null;
   private rows = new Map<string, Map<string, unknown[]>>([[INPUT_TABLE, new Map()]]);
   private timer: NodeJS.Timeout | null = null;
-  private source: (() => { snap: Snapshot }) | null = null;
+  private source: (() => { snap: Snapshot; eas: EasEntry | undefined }) | null = null;
   private nextHeartbeat = 0;
   status: SnmpStatus;
 
@@ -63,7 +65,7 @@ export class SnmpService {
   // ------------------------------------------------------------------ agent
 
   /** Start the agent; `source` supplies the data the MIB is refreshed from. */
-  start(source: () => { snap: Snapshot }) {
+  start(source: () => { snap: Snapshot; eas: EasEntry | undefined }) {
     this.source = source;
     if (!this.conf.enabled) return;
     const c = this.conf;
@@ -135,6 +137,7 @@ export class SnmpService {
     const RO = snmp.MaxAccess['read-only'];
     const scalar = (oid: string, c: ColumnDef) => mib.registerProvider({ name: c.name, type: snmp.MibProviderType.Scalar, oid, scalarType: snmp.ObjectType[c.type], maxAccess: RO });
     SYSTEM.forEach((c) => scalar(sysOid(c.n), c));
+    EAS_LAST.forEach((c) => scalar(easOid(c.n), c));
     // Index columns are readable so plain snmpwalk shows them; the MIB marks them not-accessible.
     const cols = (list: ColumnDef[]) => list.map((c) => ({ number: c.n, name: c.name, type: snmp.ObjectType[c.type], maxAccess: RO }));
     mib.registerProvider({ name: INPUT_TABLE, type: snmp.MibProviderType.Table, oid: `${inputTableOid}.1`, maxAccess: snmp.MaxAccess['not-accessible'],
@@ -145,13 +148,18 @@ export class SnmpService {
   refresh() {
     const mib = this.agent?.getMib();
     if (!mib || !this.source) return;
-    const { snap } = this.source();
+    const { snap, eas } = this.source();
     const inputs = snap.inputs;
     const sys: unknown[] = [
       `Towerlog ${snap.version}`, Math.round(snap.uptime_s * 100), inputs.length, inputs.filter((i) => i.status === 'live').length,
       inputs.filter((i) => i.faults.length).length, str(snap.hostname),
+      snap.eas.active ? 1 : 0, str(snap.eas.last),
     ];
     SYSTEM.forEach((c, i) => mib.setScalarValue(c.name, sys[i]));
+    const e: unknown[] = eas
+      ? [eas.event, str(eas.event_name), str((eas.locations ?? []).map(area).join(', ')), str(eas.sender), eas.received, str(eas.input_name), str(eas.raw)]
+      : ['', '', '', '', '', '', ''];
+    EAS_LAST.forEach((c, i) => mib.setScalarValue(c.name, e[i]));
     const rows = new Map<string, unknown[]>();
     inputs.forEach((inp, i) => {
       const idx = i + 1;
@@ -160,7 +168,7 @@ export class SnmpService {
       rows.set(String(idx), [
         idx, inp.id, str(inp.name), KIND[inp.kind], STATUS_ENUM[inp.status] ?? STATUS.stopped, live ? 1 : 0,
         live ? tenths(inp.meter.rms_db[0]) : NO_VALUE, live ? tenths(inp.meter.rms_db[1]) : NO_VALUE, Math.max(0, inp.silent_s),
-        f('link'), f('silence'), f('clip'), f('mono'), f('phase'), inp.recording ? 1 : 0, inp.chunk_minutes, str(inp.detail),
+        f('link'), f('silence'), f('clip'), f('mono'), f('phase'), inp.recording ? 1 : 0, inp.chunk_minutes, str(inp.detail), inp.eas_active ? 1 : 0,
       ]);
     });
     this.sync(mib, INPUT_TABLE, INPUT_COLUMNS, rows);
@@ -192,13 +200,14 @@ export class SnmpService {
     const c = this.conf;
     switch (cat) {
       case 'input': return c.trap_input;
+      case 'eas': return c.trap_eas;
       case 'disk': return c.trap_disk;
       case 'service': return c.trap_service;
       default: return true;
     }
   }
 
-  private varbinds(name: TrapName, subject: TrapSubject | null, text: string): Varbind[] {
+  private varbinds(name: TrapName, subject: TrapSubject | null, text: string, eas?: EasEntry): Varbind[] {
     const t = snmp.ObjectType;
     const vb: Varbind[] = [
       { oid: trapObjOid(TRAP_OBJECTS[0].n), type: t.OctetString, value: subject?.id ?? '' },
@@ -206,13 +215,17 @@ export class SnmpService {
       { oid: trapObjOid(TRAP_OBJECTS[2].n), type: t.OctetString, value: str(text) },
       { oid: trapObjOid(TRAP_OBJECTS[3].n), type: t.Integer, value: SEVERITY[TRAPS[name].severity] },
     ];
+    if (eas) {
+      const vals = [eas.event, eas.event_name, (eas.locations ?? []).map(area).join(', '), eas.sender, eas.received, eas.input_name, eas.raw];
+      EAS_LAST.forEach((c, i) => vb.push({ oid: `${easOid(c.n)}.0`, type: t.OctetString, value: str(vals[i]) }));
+    }
     return vb;
   }
 
   /** Send a notification to every destination (if its category is on). */
-  trap(name: TrapName, subject: TrapSubject | null, text: string) {
+  trap(name: TrapName, subject: TrapSubject | null, text: string, eas?: EasEntry) {
     if (!this.enabledFor(TRAPS[name].category)) return;
-    const vb = this.varbinds(name, subject, text);
+    const vb = this.varbinds(name, subject, text, eas);
     for (const target of this.conf.traps) void this.send(target, name, vb).catch(() => { /* recorded in status */ });
   }
 
