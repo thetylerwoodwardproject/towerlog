@@ -14,10 +14,10 @@ export const FAULT_TEXT: Record<string, string> = {
 };
 
 export const KIND_TEXT: Record<string, string> = {
-  http: 'HTTP / Icecast',
+  http: 'Stream URL',
   rtp: 'RTP',
   livewire: 'Livewire',
-  push: 'Icecast push',
+  push: 'Encoder → Towerlog',
 };
 
 export const INPUT_STATUS_TEXT: Record<string, string> = {

@@ -72,7 +72,7 @@
 
   <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-x-5 gap-y-[18px] p-5 max-sm:p-4">
     <Field label="Source type">
-      <FormSelect bind:value={f.kind} options={[['http', 'HTTP / Icecast / Shoutcast (Barix, Inovonics…)'], ['rtp', 'RTP unicast or multicast'], ['livewire', 'Livewire channel'], ['push', 'Icecast push (encoder → Towerlog)']]} />
+      <FormSelect bind:value={f.kind} options={[['http', 'Stream URL: Towerlog connects to it (Barix, Inovonics, Icecast…)'], ['rtp', 'RTP unicast or multicast'], ['livewire', 'Livewire channel'], ['push', 'Encoder sends to Towerlog (Icecast source)']]} />
     </Field>
     {#if f.kind === 'http'}
       <Field label="Stream URL" hint="e.g. http://10.1.2.3:8000/stream — an Inovonics or Barix unit's stream"><Input class={IN} bind:value={f.url} placeholder="http://host:port/mount" /></Field>
@@ -93,11 +93,15 @@
     {:else if f.kind === 'livewire'}
       <Field label="Livewire channel" hint="Joins multicast 239.192.x.y for this channel number (L24, 48 kHz)"><Input class={IN} type="number" min="1" max="32767" bind:value={f.livewire_channel} /></Field>
     {:else}
-      <Field label="Mount" hint="The mount the source client connects to"><Input class={IN} bind:value={f.mount} placeholder="/fm1" /></Field>
-      <Field label="Source password"><Input class={IN} type="password" bind:value={f.source_password} autocomplete="new-password" /></Field>
+      <Field label="Mount" hint="A name you choose, starting with /. The encoder must use the same one."><Input class={IN} bind:value={f.mount} placeholder="/fm1" /></Field>
+      <Field label="Password" hint="A password you choose. The encoder must use the same one."><Input class={IN} type="password" bind:value={f.source_password} autocomplete="new-password" /></Field>
       <Field label="Stream codec"><FormSelect bind:value={f.stream_codec} options={[['mp3', 'MP3'], ['aac', 'AAC (ADTS)']]} /></Field>
-      <p class="col-span-full text-xs text-muted-foreground">
-        Send any Icecast source to <code class="font-mono">icecast://source:PASSWORD@{host}:{sourcePort}{f.mount || '/mount'}</code>.
+      <p class="col-span-full rounded-md border px-3 py-2 text-xs text-muted-foreground">
+        Here <b class="font-medium text-foreground">Towerlog waits</b> and your encoder (ffmpeg, BUTT, Liquidsoap or a hardware encoder) <b class="font-medium text-foreground">connects to Towerlog</b>.
+        Set the encoder's Icecast server to <code class="font-mono text-foreground">{host}</code>, port <code class="font-mono text-foreground">{sourcePort}</code>, user <code class="font-mono text-foreground">source</code>,
+        this password and mount <code class="font-mono text-foreground">{f.mount || '/mount'}</code>, or give it the address
+        <code class="font-mono text-foreground">icecast://source:PASSWORD@{host}:{sourcePort}{f.mount || '/mount'}</code>.
+        Towerlog is not an Icecast server: it cannot be listened to from that address (use the play button in this web UI).
       </p>
     {/if}
   </div>

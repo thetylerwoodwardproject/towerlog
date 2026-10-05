@@ -11,10 +11,10 @@ export function serviceHealth(s: ServiceStatus): Health[] {
   const mailBad = s.smtp.enabled && !!s.smtp.last_error_at && (!s.smtp.last_sent || s.smtp.last_error_at > s.smtp.last_sent);
   return [
     {
-      name: 'Source port',
+      name: 'Encoder port',
       state: s.source.enabled ? `:${s.source.port}` : 'off',
       tone: s.source.enabled ? 'ok' : 'muted',
-      title: s.source.enabled ? `Icecast source endpoint on port ${s.source.port} · ${s.source.push_inputs} push input(s)` : 'The Icecast source endpoint is turned off',
+      title: s.source.enabled ? `Encoders can send to Towerlog on port ${s.source.port} · ${s.source.push_inputs} encoder input(s)` : 'Receiving from encoders is turned off',
     },
     {
       name: 'Zabbix',

@@ -38,7 +38,7 @@
     {:else if !inputs.length}
       <div class="flex flex-col items-center gap-4 rounded-lg border px-6 py-16 text-center">
         <h1 class="text-[22px] font-semibold tracking-[-0.4px]">No inputs yet</h1>
-        <p class="max-w-md text-[13px] text-subtle">An input is one audio feed to log: an Icecast or HTTP stream, RTP, a Livewire channel, or an encoder pushing to Towerlog.</p>
+        <p class="max-w-md text-[13px] text-subtle">An input is one audio feed to log: a stream URL Towerlog connects to, RTP, a Livewire channel, or an encoder that sends its stream to Towerlog.</p>
         <Button href="/config#inputs">Add an input</Button>
       </div>
     {:else}

@@ -30,13 +30,13 @@
 
 | | |
 |---|---|
-| 🎙️ **Many source types** | HTTP / Icecast / Shoutcast pull (Barix units in server mode, Inovonics 541 / 551 / 525 / 677 streams), RTP unicast and multicast, Livewire channels, and Icecast source push |
+| 🎙️ **Many source types** | a stream URL Towerlog connects to (Barix units in server mode, Inovonics 541 / 551 / 525 / 677 streams, Icecast, Shoutcast), RTP unicast and multicast, Livewire channels, and encoders that connect in and send to Towerlog |
 | 🕐 **Clock-aligned recording** | 15, 30 or 60 minute files that always start on the clock (top of the hour, :15, :30, :45). The original codec is copied, never re-encoded; linear audio is stored as FLAC |
 | 🚨 **Fault detection** | Feed lost, silence (alert after 5 s, 10 s, 30 s, 1 min, 2 min, 5 min, 10 min or any custom time), clipping, mono and out-of-phase, each with its own delay; every raise and clear is logged |
 | 📟 **Email, SNMP and Zabbix** | SMTP alerts, an SNMP agent (v2c / v3) with traps and its own MIB, and a Zabbix trapper with a generated template |
 | 📊 **Live UI** | A card per input with VU and peak meters, fault chips, a listen-in player, recordings by day with playback and download, and the fault history |
 | 🧹 **Retention** | Keep-days per input, plus a disk watermark that deletes the oldest recordings first |
-| 🔁 **Icecast push** | Any Icecast source client (ffmpeg, BUTT, Liquidsoap, an encoder) can push a stream to Towerlog and have it logged |
+| 🔁 **Encoders can send to it** | Anything that can send to an Icecast server (ffmpeg, BUTT, Liquidsoap, a hardware encoder) can send to Towerlog instead and have the stream logged |
 
 ## Screens
 
@@ -71,17 +71,23 @@ The container runs as the `node` user (uid 1000): the `./towerlog/*` folders mus
 
 | Type | You give | Recorded as |
 |---|---|---|
-| HTTP / Icecast / Shoutcast | the stream URL and its codec | `.mp3`, `.aac` or `.mka`, copied as received |
+| Stream URL (Towerlog connects out) | the URL and its codec | `.mp3`, `.aac` or `.mka`, copied as received |
 | RTP | address (multicast group or unicast), port, payload (L24, L16, G.711, MP3), rate, channels and, for linear audio, the payload type | `.flac` (MP3 payload: `.mp3`) |
 | Livewire | channel number: joins `239.192.(N÷256).(N mod 256)` | `.flac` |
-| Icecast push | a mount and a source password; the source connects to Towerlog's source port (default 8000) | `.mp3` or `.aac`, copied |
+| Encoder sends to Towerlog (Towerlog waits) | a mount and a password you choose; the encoder connects to Towerlog's source port (default 8000) | `.mp3` or `.aac`, copied |
 
 Recordings are laid out as `<recordings>/<Input_name>/YYYY/MM/DD/<Input_name>_YYMMDD_HHMM.<ext>`.
 
-### Push inputs
+### Encoder inputs (the encoder connects to Towerlog)
 
-An **Icecast push** input gives Towerlog a mount and a password; anything that can act as an Icecast source (ffmpeg, BUTT, Liquidsoap, a hardware encoder) can then send to
-`icecast://source:PASSWORD@<server>:8000/<mount>`. The port is `source.port` in the config (default 8000).
+With a stream URL input Towerlog connects out. With an **Encoder sends to Towerlog** input it is the reverse: Towerlog waits and the encoder connects in, the way it would to an Icecast server.
+Choose a mount (say `/kutx`) and a password, then set the encoder's Icecast server to the Towerlog host, port 8000 (`source.port`), user `source`, that password and mount, or in ffmpeg:
+
+```sh
+ffmpeg -re -i input -c:a libmp3lame -b:a 128k -f mp3 -content_type audio/mpeg icecast://source:PASSWORD@towerlog-host:8000/kutx
+```
+
+Towerlog is not an Icecast server: nothing can listen at that address. It only receives and logs; listen in the web UI.
 
 ## Faults and alerts
 
@@ -113,7 +119,7 @@ Set `TOWERLOG_ALLOW="10.0.0.0/8,::1"` in the service environment to restrict the
 ## Resource use
 
 Measured once, on a single AMD EPYC 7713 virtual core, with the test rig below (7 inputs: 5 live HTTP MP3 feeds at 96 kbps,
-1 Icecast push, 1 unreachable): each live HTTP/MP3 input's ffmpeg used about 0.6 % of a core, and the Towerlog process about 1.6 %.
+1 encoder input, 1 unreachable): each live HTTP/MP3 input's ffmpeg used about 0.6 % of a core, and the Towerlog process about 1.6 %.
 That is a rough single reading, not a benchmark: FLAC (RTP / Livewire) inputs, AAC feeds, many listeners and larger counts are unmeasured.
 Each listener adds one MP3 encoder while they listen.
 
