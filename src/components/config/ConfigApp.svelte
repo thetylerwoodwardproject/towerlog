@@ -1,6 +1,10 @@
 <script lang="ts">
   // Configuration: a section list (a scrolling strip on phones) and one section at a time.
   import Plus from '@lucide/svelte/icons/plus';
+  import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
+  import ChevronsDownUp from '@lucide/svelte/icons/chevrons-down-up';
+  import Search from '@lucide/svelte/icons/search';
+  import { Input } from '$lib/components/ui/input/index.js';
   import { onMount } from 'svelte';
   import { Button } from '$lib/components/ui/button/index.js';
   import { Skeleton } from '$lib/components/ui/skeleton/index.js';
@@ -27,6 +31,16 @@
   let config = $state<Config | null>(null);
   let inputDrafts = $state<InputForm[]>([]);
   let tab = $state<Tab>(fromHash());
+  // Saved inputs start collapsed so a long list stays scannable; new drafts open.
+  let openIds = $state<Record<string, boolean>>({});
+  let filter = $state('');
+  const FILTER_AT = 6;
+  const shown = $derived.by(() => {
+    const q = filter.trim().toLowerCase();
+    const all = config?.inputs ?? [];
+    return q ? all.filter((i) => `${i.name} ${i.id} ${i.url} ${i.address} ${i.mount}`.toLowerCase().includes(q)) : all;
+  });
+  const setAll = (v: boolean) => { for (const i of shown) openIds[i.id] = v; };
 
   async function load() {
     config = (await attempt('Config', () => get<Config>('/api/config'))) ?? null;
@@ -66,13 +80,24 @@
       {:else if tab === 'inputs'}
         <Section title="Inputs" description="Audio feeds to log. Each saves and restarts on its own; the others keep recording.">
           {#snippet actions()}
+            {#if config.inputs.length > 1}
+              <Button variant="ghost" class="h-8 px-2.5 text-subtle" onclick={() => setAll(true)} title="Expand all"><ChevronsUpDown /> Expand</Button>
+              <Button variant="ghost" class="h-8 px-2.5 text-subtle" onclick={() => setAll(false)} title="Collapse all"><ChevronsDownUp /> Collapse</Button>
+            {/if}
             <Button class="h-8 px-3" onclick={() => (inputDrafts = [...inputDrafts, blankInput()])}><Plus /> Add input</Button>
           {/snippet}
-          {#each config.inputs as inp (inp.id)}
-            <InputEditor input={inp} live={liveInput(inp.id)} sourcePort={config.source.port} onsaved={load} ondeleted={load} />
+          {#if config.inputs.length >= FILTER_AT}
+            <div class="relative">
+              <Search class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input class="h-9 pl-9" placeholder="Filter {config.inputs.length} inputs by name, id or address" aria-label="Filter inputs" bind:value={filter} />
+            </div>
+            {#if filter && !shown.length}<p class="text-sm text-muted-foreground">No inputs match “{filter}”.</p>{/if}
+          {/if}
+          {#each shown as inp (inp.id)}
+            <InputEditor input={inp} live={liveInput(inp.id)} bind:open={openIds[inp.id]} sourcePort={config.source.port} onsaved={load} ondeleted={load} />
           {/each}
           {#each inputDrafts as d, i (d)}
-            <InputEditor input={d} sourcePort={config.source.port}
+            <InputEditor input={d} open sourcePort={config.source.port}
               onsaved={() => { inputDrafts = inputDrafts.filter((_, j) => j !== i); load(); }}
               ondeleted={() => (inputDrafts = inputDrafts.filter((_, j) => j !== i))} />
           {/each}

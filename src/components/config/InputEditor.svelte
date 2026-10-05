@@ -12,6 +12,7 @@
 <script lang="ts">
   // Edit one logged input (or a new one when `input.id` is empty).
   import Trash2 from '@lucide/svelte/icons/trash-2';
+  import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import { Button } from '$lib/components/ui/button/index.js';
   import { Input } from '$lib/components/ui/input/index.js';
   import { Switch } from '$lib/components/ui/switch/index.js';
@@ -23,8 +24,8 @@
   import FormSelect from '../common/FormSelect.svelte';
   import Toggle from './Toggle.svelte';
 
-  let { input, live, sourcePort, onsaved, ondeleted }: {
-    input: InputForm; live?: InputSnapshot; sourcePort: number;
+  let { input, live, sourcePort, open = $bindable(false), onsaved, ondeleted }: {
+    input: InputForm; live?: InputSnapshot; sourcePort: number; open?: boolean;
     onsaved: (i: InputForm) => void; ondeleted: (id: string) => void;
   } = $props();
 
@@ -41,6 +42,11 @@
     return opts.sort((a, b) => a[0] - b[0]);
   });
   let custom = $state(false);
+  const KIND_LABEL = { http: 'Stream URL', rtp: 'RTP', livewire: 'Livewire', push: 'Encoder push' } as const;
+  const summary = $derived.by(() => {
+    const src = f.kind === 'http' ? f.url : f.kind === 'rtp' ? `${f.address || 'any'}:${f.port}` : f.kind === 'livewire' ? `ch ${f.livewire_channel}` : f.mount;
+    return [KIND_LABEL[f.kind], src, f.record ? `${f.chunk_minutes} min files, ${f.keep_days || '∞'} d` : 'not recording'].filter(Boolean).join(' · ');
+  });
 
   async function save() {
     busy = true;
@@ -59,10 +65,14 @@
 </script>
 
 <section class="overflow-hidden rounded-lg border">
-  <div class="flex flex-wrap items-center gap-3 border-b px-5 py-3 max-sm:px-4">
+  <div class="flex flex-wrap items-center gap-3 px-5 py-3 max-sm:px-4 {open ? 'border-b' : ''}">
+    <Button size="icon" variant="ghost" class="-ml-2 size-8" aria-expanded={open} title={open ? 'Collapse' : 'Expand'} aria-label={open ? 'Collapse input' : 'Expand input'} onclick={() => (open = !open)}>
+      <ChevronRight class="transition-transform {open ? 'rotate-90' : ''}" />
+    </Button>
     {#if live}<span class="size-1.5 flex-none rounded-full {DOT[inputTone(live)]}"></span>{/if}
     <Input class="h-9 w-full max-w-[240px] text-sm font-medium" bind:value={f.name} placeholder="Input name" aria-label="Input name" />
     <span class="font-mono text-[11px] text-faint">{isNew ? 'new input' : input.id}</span>
+    {#if !open}<span class="min-w-0 flex-1 truncate text-xs text-muted-foreground max-md:hidden" title={summary}>{summary}</span>{/if}
     {#if live}<StatusBadge tone={inputTone(live)} title={live.detail}>{INPUT_STATUS_TEXT[live.status]}</StatusBadge>{/if}
     <div class="ml-auto flex items-center gap-3">
       <label class="flex items-center gap-2 text-[13px] text-subtle">Enabled <Switch bind:checked={f.enabled} /></label>
@@ -70,6 +80,7 @@
     </div>
   </div>
 
+{#if open}
   <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-x-5 gap-y-[18px] p-5 max-sm:p-4">
     <Field label="Source type">
       <FormSelect bind:value={f.kind} options={[['http', 'Stream URL: Towerlog connects to it (Barix, Inovonics, Icecast…)'], ['rtp', 'RTP unicast or multicast'], ['livewire', 'Livewire channel'], ['push', 'Encoder sends to Towerlog (Icecast source)']]} />
@@ -142,4 +153,5 @@
     <Button class="h-9 px-4" disabled={busy} onclick={save}>{isNew ? 'Add input' : 'Save & restart'}</Button>
     <span class="text-xs text-muted-foreground">{isNew ? 'Starts logging as soon as it is added.' : 'Only this input restarts.'}</span>
   </div>
+{/if}
 </section>
