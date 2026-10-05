@@ -36,6 +36,7 @@
   let menuOpen = $state(false);
   const snap = $derived(live.snapshot);
   const health = $derived(snap ? serviceHealth(snap.services) : []);
+  const disk = $derived(snap?.disk && snap.disk.total_gb ? { ...snap.disk, used: Math.round((1 - snap.disk.free_gb / snap.disk.total_gb) * 100) } : null);
   const pages = [
     { id: 'manual', href: '/manual', label: 'Manual', short: 'Manual', icon: BookOpen },
     { id: 'config', href: '/config', label: 'Configuration', short: 'Config', icon: Settings },
@@ -74,6 +75,19 @@
 
 {#snippet healthList()}
   <div class="flex flex-col gap-2">
+    {#if disk}
+      <Hint text="Recordings disk: {disk.free_gb} GB free of {disk.total_gb} GB" class="w-full">
+        <div class="flex w-full flex-col gap-1.5">
+          <div class="flex items-center gap-2 text-xs text-subtle">
+            <span class="flex-1">Disk free</span>
+            <span class="font-mono text-[11px] {disk.used > 90 ? 'text-bad' : 'text-muted-foreground'}">{disk.free_gb} GB</span>
+          </div>
+          <div class="h-1 w-full rounded-full bg-border" role="meter" aria-label="Recordings disk used" aria-valuenow={disk.used} aria-valuemin={0} aria-valuemax={100}>
+            <div class="h-full rounded-full {disk.used > 90 ? 'bg-bad' : 'bg-foreground'}" style="width:{disk.used}%"></div>
+          </div>
+        </div>
+      </Hint>
+    {/if}
     {#each health as h (h.name)}
       <Hint text={h.title} class="w-full">
         <div class="flex w-full items-center gap-2 text-xs text-subtle">
