@@ -26,6 +26,8 @@ export interface Snapshot {
   time: number;
   inputs: InputSnapshot[];
   services: ServiceStatus;
+  /** EAS: tone active on any input, the last tone or message heard (text, epoch ms), and whether SAME headers can be decoded. */
+  eas: { active: boolean; last: string; last_at: number | null; decoder: boolean };
   /** Recordings disk, null when unknown. */
   disk: { free_gb: number; total_gb: number } | null;
   /** Configuration and disk warnings for the dashboard. */
@@ -53,6 +55,8 @@ export interface InputSnapshot {
   faults: string[];
   /** Seconds below the silence threshold, 0 when not silent. */
   silent_s: number;
+  /** True while an EAS attention tone is being heard on this input. */
+  eas_active: boolean;
   recording: boolean;
   chunk_minutes: number;
   /** Seconds since the feed last delivered audio, null if it never has. */

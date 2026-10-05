@@ -2,12 +2,14 @@
   // Logged inputs: a card per feed (status, faults, meters, listen), then the
   // selected input's recordings and the fault history.
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
+  import Siren from '@lucide/svelte/icons/siren';
   import { onMount } from 'svelte';
   import { Button } from '$lib/components/ui/button/index.js';
   import { Skeleton } from '$lib/components/ui/skeleton/index.js';
   import * as Tabs from '$lib/components/ui/tabs/index.js';
   import { live } from '$lib/live.svelte';
   import { FAULT_TEXT } from '$lib/inputs';
+  import { fmtAgo } from '$lib/format';
   import Shell from './shell/Shell.svelte';
   import InputCard from './dashboard/InputCard.svelte';
   import InputRecordings from './dashboard/InputRecordings.svelte';
@@ -20,6 +22,7 @@
   const inputs = $derived(snap?.inputs ?? []);
   const sel = $derived(inputs.find((i) => i.id === hash) ?? inputs[0]);
   const faulted = $derived(inputs.filter((i) => i.faults.length));
+  const eas = $derived(snap?.eas);
 
   onMount(() => {
     const onHash = () => (hash = decodeURIComponent(location.hash.slice(1)));
@@ -43,6 +46,13 @@
         <Button href="/config#inputs">Add an input</Button>
       </div>
     {:else}
+      {#if eas?.active}
+        <div role="alert" class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-bad-border px-4 py-3 text-[13px]">
+          <Siren class="size-4 flex-none text-bad" />
+          <span class="min-w-0 flex-1"><span class="font-medium text-bad-text">EAS attention tone.</span> <span class="text-subtle">{eas.last || 'Being heard now'}{eas.last_at ? ` · ${fmtAgo(eas.last_at)}` : ''}</span></span>
+          <Button size="sm" variant="outline" href="/eas">EAS log</Button>
+        </div>
+      {/if}
       {#each faulted as f (f.id)}
         <div role="alert" class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-bad-border px-4 py-3 text-[13px]">
           <TriangleAlert class="size-4 flex-none text-bad" />

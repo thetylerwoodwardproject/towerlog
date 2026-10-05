@@ -37,6 +37,8 @@ export const SYSTEM: ColumnDef[] = [
   { n: 4, name: 'towerlogInputsLive', type: 'Integer', desc: 'Number of inputs delivering audio' },
   { n: 5, name: 'towerlogInputsFaulted', type: 'Integer', desc: 'Number of inputs with at least one raised fault' },
   { n: 6, name: 'towerlogHostname', type: 'OctetString', desc: 'Host name of the Towerlog server' },
+  { n: 7, name: 'towerlogEasActive', type: 'Integer', enums: BOOL, desc: 'true while an EAS attention tone is being heard on any input' },
+  { n: 8, name: 'towerlogEasLastText', type: 'OctetString', desc: 'Last EAS tone or message heard, as text' },
 ];
 
 /** towerlogInputTable (.1.2), INDEX { towerlogInputIndex }. */
@@ -58,6 +60,18 @@ export const INPUT_COLUMNS: ColumnDef[] = [
   { n: 15, name: 'towerlogInputRecording', type: 'Integer', enums: BOOL, desc: 'true while the input is recording to disk' },
   { n: 16, name: 'towerlogInputChunkMinutes', type: 'Integer', desc: 'Minutes per recording file (15, 30 or 60)' },
   { n: 17, name: 'towerlogInputDetail', type: 'OctetString', desc: 'Detail of the current state (for example the error when down)' },
+  { n: 18, name: 'towerlogInputEasTone', type: 'Integer', enums: BOOL, desc: 'true while the EAS attention tone is heard on this input' },
+];
+
+/** towerlogEasLast (.1.4): the last decoded EAS/SAME message. */
+export const EAS_LAST: ColumnDef[] = [
+  { n: 1, name: 'towerlogEasLastEvent', type: 'OctetString', desc: 'SAME event code, e.g. TOR' },
+  { n: 2, name: 'towerlogEasLastEventName', type: 'OctetString', desc: 'Event name, e.g. Tornado Warning' },
+  { n: 3, name: 'towerlogEasLastAreas', type: 'OctetString', desc: 'Areas (state + county FIPS)' },
+  { n: 4, name: 'towerlogEasLastSender', type: 'OctetString', desc: 'Sending station, e.g. KEAX/NWS' },
+  { n: 5, name: 'towerlogEasLastHeard', type: 'OctetString', desc: 'When it was heard (ISO 8601)' },
+  { n: 6, name: 'towerlogEasLastInput', type: 'OctetString', desc: 'Name of the input it was heard on' },
+  { n: 7, name: 'towerlogEasLastRaw', type: 'OctetString', desc: 'Raw SAME header' },
 ];
 
 /** towerlogTrapObjects (.1.5): varbinds carried by every notification (accessible-for-notify). */
@@ -70,11 +84,12 @@ export const TRAP_OBJECTS: ColumnDef[] = [
 
 export const sysOid = (n: number) => `${OBJECTS}.1.${n}`;
 export const inputTableOid = `${OBJECTS}.2`;
+export const easOid = (n: number) => `${OBJECTS}.4.${n}`;
 export const trapObjOid = (n: number) => `${OBJECTS}.5.${n}`;
 
-export type TrapCategory = 'input' | 'disk' | 'service' | 'heartbeat' | 'test';
+export type TrapCategory = 'input' | 'eas' | 'disk' | 'service' | 'heartbeat' | 'test';
 
-export interface TrapDef { n: number; name: string; category: TrapCategory; severity: keyof typeof SEVERITY; desc: string }
+export interface TrapDef { n: number; name: string; category: TrapCategory; severity: keyof typeof SEVERITY; desc: string; eas?: boolean }
 
 /** Notifications (.2.0.N). */
 export const TRAPS = {
@@ -86,6 +101,8 @@ export const TRAPS = {
   serviceStopped: { n: 6, name: 'towerlogServiceStopped', category: 'service', severity: 'warning', desc: 'The Towerlog service is stopping' },
   heartbeat: { n: 7, name: 'towerlogHeartbeat', category: 'heartbeat', severity: 'info', desc: 'Periodic heartbeat (if enabled)' },
   test: { n: 8, name: 'towerlogTestNotification', category: 'test', severity: 'info', desc: 'Sent by "Send test trap" in the web UI' },
+  easTone: { n: 9, name: 'towerlogEasTone', category: 'eas', severity: 'critical', desc: 'The EAS attention tone was heard on an input' },
+  easMessage: { n: 10, name: 'towerlogEasMessage', category: 'eas', severity: 'warning', eas: true, desc: 'An EAS/SAME header was decoded; the towerlogEasLast objects are included' },
 } satisfies Record<string, TrapDef>;
 export type TrapName = keyof typeof TRAPS;
 export const trapOid = (t: TrapName) => `${NOTIFICATIONS}.${TRAPS[t].n}`;
@@ -137,7 +154,7 @@ ${cols.map((c) => objectType(c, entry, 'read-only')).join('\n')}`;
 
 /** The TOWERLOG-MIB as SMIv2 text. */
 export function buildMib(): string {
-  const all = [...SYSTEM, ...INPUT_COLUMNS, ...TRAP_OBJECTS].map((c) => c.name);
+  const all = [...SYSTEM, ...INPUT_COLUMNS, ...EAS_LAST, ...TRAP_OBJECTS].map((c) => c.name);
   const traps = Object.values(TRAPS) as TrapDef[];
   return `TOWERLOG-MIB DEFINITIONS ::= BEGIN
 
@@ -151,10 +168,12 @@ IMPORTS
     MODULE-COMPLIANCE, OBJECT-GROUP, NOTIFICATION-GROUP FROM SNMPv2-CONF;
 
 towerlog MODULE-IDENTITY
-    LAST-UPDATED "202610040000Z"
+    LAST-UPDATED "202610050000Z"
     ORGANIZATION "Towerlog"
     CONTACT-INFO "https://github.com/thetylerwoodwardproject/towerlog"
-    DESCRIPTION  "Status of Towerlog inputs, and notifications for lost feeds, silence, clipping, mono and phase faults."
+    DESCRIPTION  "Status of Towerlog inputs, and notifications for lost feeds, silence, clipping, mono and phase faults and EAS alerts."
+    REVISION     "202610050000Z"
+    DESCRIPTION  "Added the EAS objects (towerlogEasLast, towerlogEasActive, towerlogInputEasTone) and the towerlogEasTone and towerlogEasMessage notifications."
     REVISION     "202610040000Z"
     DESCRIPTION  "First version."
     ::= { enterprises ${ENTERPRISE} }
@@ -164,13 +183,15 @@ towerlogNotifyPrefix  OBJECT IDENTIFIER ::= { towerlog 2 }
 towerlogNotifications OBJECT IDENTIFIER ::= { towerlogNotifyPrefix 0 }
 towerlogConformance   OBJECT IDENTIFIER ::= { towerlog 3 }
 towerlogSystem        OBJECT IDENTIFIER ::= { towerlogObjects 1 }
+towerlogEasLast       OBJECT IDENTIFIER ::= { towerlogObjects 4 }
 towerlogTrapObjects   OBJECT IDENTIFIER ::= { towerlogObjects 5 }
 
 ${SYSTEM.map((c) => objectType(c, 'towerlogSystem', 'read-only')).join('\n')}
 ${table('towerlogInputTable', 2, 'towerlogInputEntry', ['towerlogInputIndex'], INPUT_COLUMNS, 'One row per configured input')}
+${EAS_LAST.map((c) => objectType(c, 'towerlogEasLast', 'read-only')).join('\n')}
 ${TRAP_OBJECTS.map((c) => objectType(c, 'towerlogTrapObjects', 'accessible-for-notify')).join('\n')}
 ${traps.map((t) => `${t.name} NOTIFICATION-TYPE
-    OBJECTS     { towerlogTrapInputId, towerlogTrapInputName, towerlogTrapText, towerlogTrapSeverity }
+    OBJECTS     { towerlogTrapInputId, towerlogTrapInputName, towerlogTrapText, towerlogTrapSeverity${t.eas ? ',\n                  ' + EAS_LAST.map((c) => c.name).join(', ') : ''} }
     STATUS      current
     DESCRIPTION ${quote(t.desc)}
     ::= { towerlogNotifications ${t.n} }

@@ -12,6 +12,7 @@ const toc = [
   ['receive', 'Receiving a stream from an encoder'],
   ['recording', 'Recording'],
   ['faults', 'Faults and alert timing'],
+  ['eas', 'EAS alerts'],
   ['clock', 'Clock and NTP'],
   ['zabbix', 'Zabbix'],
   ['email', 'Email alerts'],
@@ -67,7 +68,8 @@ const toc = [
       <p>The home page shows a card per input:</p>
       <ul>
         <li><b>Status</b>: <i>live</i> (audio arriving), <i>connecting</i>, <i>down</i> (with the reason, for example "Connection refused") or <i>stopped</i> (disabled).</li>
-        <li><b>Fault chips</b>: Feed lost, Silence (with how long), Clipping, Mono, Out of phase. A red banner above the cards lists every input with a fault.</li>
+        <li><b>Fault chips</b>: Feed lost, Silence (with how long), Clipping, Mono, Out of phase. A red banner above the cards lists every input with a fault.
+          An <i>EAS tone</i> chip and a banner with a link to the <a href="/eas">EAS log</a> show while an attention tone is heard.</li>
         <li><b>Meters</b>: a digital peak meter (LEDs, peak hold, dBFS per channel) that updates five times a second.</li>
         <li><b>Listen</b>: the play button streams the input to your browser as 96 kbps MP3. The encoder only runs while someone listens.</li>
         <li><b>Recording</b>: shows whether the input is writing files and how long each file is.</li>
@@ -139,8 +141,30 @@ const toc = [
         not reported as mono or phase.</p>
       </section>
 
+      <section id="eas" data-manual-section>
+      <h2>8 · EAS alerts</h2>
+      <p>Towerlog listens for Emergency Alert System tests and alerts on every input (turn it off per input with <b>EAS alerts</b> in the input's settings).
+        It is meant for feeds that carry a station's air chain or NOAA Weather Radio. Two things are detected:</p>
+      <ul>
+        <li><b>The attention tone</b> (853 Hz + 960 Hz together). This needs nothing extra. A red <i>EAS tone</i> chip appears on the input's card and a banner at the top of the dashboard while it is heard.</li>
+        <li><b>The SAME header</b>: the data burst before the tone that says what the alert is (event, areas, who sent it, how long it is valid). This needs <code>multimon-ng</code> on the server
+          (the installer and the Docker image include it). Without it the dashboard shows a warning and only the tone is logged.</li>
+      </ul>
+      <p>Everything heard goes to the <a href="/eas">EAS log</a> page and to <code>eas/messages.jsonl</code> in the data folder, with the input, the time, the decoded fields and the raw header.
+        Each entry also says <b>which recording file holds the audio</b> (the file starting on the clock, and about how far into it), so you can find and play the alert. The EAS log can be filtered by input and downloaded as CSV.
+        A header is sent three times on air; Towerlog reports it once. The end-of-message burst marks the entry as ended.</p>
+      <p>Alerts also go out on the three outputs:</p>
+      <ul>
+        <li><b>Email</b>: one mail for the tone and one with the decoded message (switch: <i>EAS tones and messages</i> under Notify on).</li>
+        <li><b>SNMP</b>: traps <code>towerlogEasTone</code> and <code>towerlogEasMessage</code> (the second carries the <code>towerlogEasLast</code> objects: event, areas, sender, time, input, raw header), plus <code>towerlogEasActive</code>, <code>towerlogEasLastText</code> and a per-input <code>towerlogInputEasTone</code> flag to poll.</li>
+        <li><b>Zabbix</b>: <code>towerlog.eas</code> (1 for about 10 seconds), <code>towerlog.input.eas[id]</code> and the text item <code>towerlog.input.eas.message[id]</code>, with HIGH triggers in the template, and the text in <code>towerlog.event</code>.</li>
+      </ul>
+      <p>An alert is <i>not</i> a fault: it does not mark the input as faulted and does not stop recording. Tone detection is on the left channel; it assumes the tone arrives at a normal level (a feed attenuated
+        far below the program audio may not trip it). A header that is too noisy to decode still shows as a tone-only entry.</p>
+      </section>
+
       <section id="clock" data-manual-section>
-      <h2>8 · Clock and NTP</h2>
+      <h2>9 · Clock and NTP</h2>
       <p>Towerlog cuts every recording file on this computer's clock and stamps every fault with it. If the clock is wrong, a "top of the hour" file starts at the wrong time and fault times in emails, SNMP and Zabbix are wrong too.
         Keep it right with <b>chrony</b>, which the installer sets up. Open <a href="/config#clock">Configuration → Clock</a>:</p>
       <ul>
@@ -153,42 +177,43 @@ const toc = [
       </section>
 
       <section id="zabbix" data-manual-section>
-      <h2>9 · Zabbix</h2>
+      <h2>10 · Zabbix</h2>
       <p>Towerlog pushes with the Zabbix trapper protocol (TCP 10051). Download the template from <a href="/config#zabbix">Configuration → Zabbix</a>,
         import it on the Zabbix server (6.0 or newer) and attach it to a host whose name matches the <b>Host name</b> in Towerlog.</p>
       <ul>
         <li><b>Discovery</b>: every input is discovered automatically (<code>towerlog.inputs.discovery</code>).</li>
-        <li><b>Items per input</b>: state, up, name, type, recording, level, and <code>fault.link</code>, <code>fault.silence</code>, <code>fault.clip</code>, <code>fault.mono</code>, <code>fault.phase</code> (1 while raised).</li>
-        <li><b>Triggers</b>: one per fault, plus "live but not recording", "no inputs live" and "heartbeat lost" (no heartbeat for 5 minutes).</li>
+        <li><b>Items per input</b>: state, up, name, type, recording, level, <code>fault.link</code>, <code>fault.silence</code>, <code>fault.clip</code>, <code>fault.mono</code>, <code>fault.phase</code> (1 while raised), and <code>eas</code> / <code>eas.message</code>.</li>
+        <li><b>Triggers</b>: one per fault, one for an EAS tone and one for a new EAS message, plus "live but not recording", "no inputs live" and "heartbeat lost" (no heartbeat for 5 minutes).</li>
         <li><b>Events</b>: each raise and clear is also pushed as text to <code>towerlog.event</code>.</li>
       </ul>
       </section>
 
       <section id="email" data-manual-section>
-      <h2>10 · Email alerts</h2>
-      <p>Configure the SMTP server in <a href="/config#smtp">Configuration → Email</a>. Towerlog mails when an input raises or clears a fault (including how long it lasted),
+      <h2>11 · Email alerts</h2>
+      <p>Configure the SMTP server in <a href="/config#smtp">Configuration → Email</a>. Towerlog mails when an input raises or clears a fault (including how long it lasted), when an EAS tone or message is heard,
         when free disk space drops below the alert level, and when the service starts or stops. Each kind has its own switch. Use <b>Send test email</b> after saving.</p>
       </section>
 
       <section id="snmp" data-manual-section>
-      <h2>11 · SNMP</h2>
+      <h2>12 · SNMP</h2>
       <p>The agent answers GET, GETNEXT and GETBULK (v2c and v3, read-only) and sends traps. Download the <b>TOWERLOG-MIB</b> from
         <a href="/config#snmp">Configuration → SNMP</a> (enterprise number 99999 is a placeholder: register your own before wide use).</p>
       <ul>
-        <li><b>System</b> scalars: version, uptime, inputs total, inputs live, inputs faulted, host name.</li>
-        <li><b>Input table</b>: one row per input with status, level, silent seconds, one flag per fault, recording, file length and detail.</li>
-        <li><b>Traps</b>: <code>towerlogInputFault</code> and <code>towerlogInputCleared</code> (the text says which fault), <code>towerlogDiskLow</code>, <code>towerlogDiskOk</code>, service started and stopped, an optional heartbeat, and a test trap.</li>
+        <li><b>System</b> scalars: version, uptime, inputs total, inputs live, inputs faulted, host name, EAS active, last EAS text.</li>
+        <li><b>Last EAS message</b> (<code>towerlogEasLast</code>): event, event name, areas, sender, time heard, input, raw header.</li>
+        <li><b>Input table</b>: one row per input with status, level, silent seconds, one flag per fault, recording, file length, detail and EAS tone.</li>
+        <li><b>Traps</b>: <code>towerlogInputFault</code> and <code>towerlogInputCleared</code> (the text says which fault), <code>towerlogDiskLow</code>, <code>towerlogDiskOk</code>, <code>towerlogEasTone</code> and <code>towerlogEasMessage</code>, service started and stopped, an optional heartbeat, and a test trap.</li>
       </ul>
       </section>
 
       <section id="system" data-manual-section>
-      <h2>12 · System, files and commands</h2>
+      <h2>13 · System, files and commands</h2>
       <table>
         <thead><tr><th>Path</th><th>What</th></tr></thead>
         <tbody>
           <tr><td><code>/etc/towerlog/config.json</code></td><td>All settings, mode 600 (it holds passwords). The previous version is kept as <code>config.json.bak</code>.</td></tr>
-          <tr><td><code>/var/lib/towerlog/</code></td><td>Recordings, <code>faults.jsonl</code>, state.</td></tr>
-          <tr><td><code>/var/log/towerlog/</code></td><td><code>towerlog.log</code>, <code>faults.log</code>, <code>email.log</code>, <code>zabbix.log</code>, <code>snmp.log</code>.</td></tr>
+          <tr><td><code>/var/lib/towerlog/</code></td><td>Recordings, <code>faults.jsonl</code>, <code>eas/messages.jsonl</code>, state.</td></tr>
+          <tr><td><code>/var/log/towerlog/</code></td><td><code>towerlog.log</code>, <code>faults.log</code>, <code>eas.log</code>, <code>email.log</code>, <code>zabbix.log</code>, <code>snmp.log</code>.</td></tr>
         </tbody>
       </table>
       <pre>towerlog check               # config problems, ffmpeg, inputs
@@ -200,7 +225,7 @@ towerlog logs                # follow the service log</pre>
       </section>
 
       <section id="troubleshooting" data-manual-section>
-      <h2>13 · Troubleshooting</h2>
+      <h2>14 · Troubleshooting</h2>
       <dl>
         <dt>An HTTP input stays "down" with "Connection refused" or "Server returned 404".</dt>
         <dd>Open the URL in a browser or VLC from the Towerlog host. For a Barix, make sure it is streaming in server mode on that port. Check firewalls.</dd>

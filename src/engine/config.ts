@@ -66,6 +66,8 @@ export const InputSchema = z.object({
   mono_secs: int(30, 1, 3600),
   detect_clip: bool(true),
   detect_mono: bool(false),
+  /** Listen for the EAS attention tone and decode SAME headers (needs multimon-ng) on this feed. */
+  detect_eas: bool(true),
 });
 export type InputConfig = z.infer<typeof InputSchema>;
 
@@ -77,6 +79,8 @@ export const ZabbixSchema = z.object({
   key_event: str('towerlog.event'),
   key_active: str('towerlog.inputs_live'),
   key_heartbeat: str('towerlog.heartbeat'),
+  /** Set to 1 for about 10 seconds when the EAS attention tone is heard on any input. */
+  key_eas: str('towerlog.eas'),
   interval: int(60, 10, 3600),
   level_monitor: bool(true),
 });
@@ -95,6 +99,8 @@ export const SmtpSchema = z.object({
   timeout: int(10, 1, 120),
   /** Email for logged-input faults (feed lost, silence, clipping, mono, phase). */
   alert_input: bool(true),
+  /** Email for EAS attention tones and decoded SAME messages. */
+  alert_eas: bool(true),
   alert_disk: bool(true),
   alert_service: bool(true),
   disk_min_gb: num(2),
@@ -125,6 +131,7 @@ export const SnmpSchema = z.object({
   traps: z.array(z.unknown()).catch([]).default([]).transform((a) =>
     a.flatMap((t) => { const r = TrapTargetSchema.safeParse(t); return r.success ? [r.data] : []; }).slice(0, 4)),
   trap_input: bool(true),
+  trap_eas: bool(true),
   trap_disk: bool(true),
   trap_service: bool(true),
   /** Heartbeat trap interval in seconds; 0 = off. */

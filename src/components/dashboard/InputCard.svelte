@@ -31,8 +31,9 @@
   </div>
 
   <div class="min-h-[40px] text-[13px]">
-    {#if input.faults.length}
+    {#if input.faults.length || input.eas_active}
       <div class="flex flex-wrap gap-1.5">
+        {#if input.eas_active}<span class="rounded-md border border-bad-border px-2 py-0.5 text-xs font-medium text-bad-text">EAS tone</span>{/if}
         {#each input.faults as f (f)}
           <span class="rounded-md border border-bad-border px-2 py-0.5 text-xs font-medium text-bad-text">
             {FAULT_TEXT[f] ?? f}{f === 'silence' && input.silent_s ? ` · ${fmtSecs(input.silent_s)}` : ''}
@@ -42,7 +43,7 @@
     {/if}
     {#if input.status !== 'live' && input.detail}
       <div class="mt-1 line-clamp-2 text-subtle">{input.detail}</div>
-    {:else if !input.faults.length}
+    {:else if !input.faults.length && !input.eas_active}
       <div class="text-subtle">
         {#if input.silent_s > 0}Quiet for {fmtSecs(input.silent_s)}{:else}Audio OK{/if}
       </div>

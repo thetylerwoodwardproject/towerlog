@@ -5,7 +5,7 @@
 #   sudo ./deploy/install.sh --yes    no questions; accept the defaults
 #
 # What it does:
-#   1. installs ffmpeg, chrony (the clock) and Node.js 22 (from nodejs.org if the system Node is older)
+#   1. installs ffmpeg, multimon-ng (EAS decoding), chrony (the clock) and Node.js 22 (from nodejs.org if the system Node is older)
 #   2. installs the app to /usr/local/lib/towerlog and builds it
 #   3. creates the "towerlog" service user, /etc/towerlog, /var/lib/towerlog, /var/log/towerlog
 #   4. sets the web UI password and installs and starts towerlog.service
@@ -47,7 +47,7 @@ command -v apt-get >/dev/null || die "this installer needs apt (Debian/Ubuntu); 
 step "System packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq ffmpeg chrony curl ca-certificates xz-utils rsync >/dev/null
+apt-get install -y -qq ffmpeg multimon-ng chrony curl ca-certificates xz-utils rsync >/dev/null
 ok "ffmpeg $(ffmpeg -version | head -n1 | awk '{print $3}'), chrony $(chronyc -v 2>/dev/null | awk '{print $3}')"
 
 step "Node.js ${NODE_MAJOR}"

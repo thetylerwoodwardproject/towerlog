@@ -20,6 +20,8 @@ export const INPUT_METRICS: Record<string, [kind: 'char' | 'text' | 'uint' | 'fl
   'fault.clip': ['uint', '1 while the audio is clipping'],
   'fault.mono': ['uint', '1 while left and right are identical'],
   'fault.phase': ['uint', '1 while left and right are out of phase'],
+  eas: ['uint', '1 for about 10 seconds when the EAS attention tone is heard'],
+  'eas.message': ['text', 'Last decoded EAS/SAME message (event, areas, sender)'],
 };
 
 export const KEY_INPUT_DISCOVERY = 'towerlog.inputs.discovery';

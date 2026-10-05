@@ -22,6 +22,8 @@ import { SnmpService } from './snmp.ts';
 import { buildMib, type TrapName } from './snmp-mib.ts';
 import { LogInput } from './inputs/input.ts';
 import { FaultLog } from './inputs/faultlog.ts';
+import { EasLog, chunkStart, type EasEntry } from './eas-log.ts';
+import type { SameMessage } from './inputs/same.ts';
 import { listChunks, purgeForSpace } from './inputs/record.ts';
 import { analyzeFile, readCached, writeCached } from './inputs/analyze.ts';
 import { FAULT_LABEL } from './faults.ts';
@@ -56,6 +58,9 @@ export class Engine {
   readonly started = Date.now();
   inputs = new Map<string, LogInput>();
   faultLog!: FaultLog;
+  easLog!: EasLog;
+  /** Last EAS tone or message heard (text, epoch ms) for the dashboard banner. */
+  easLast = { text: '', at: null as number | null };
   zbx!: ZabbixSender;
   mailer!: Mailer;
   snmp!: SnmpService;
@@ -87,7 +92,8 @@ export class Engine {
     for (const p of this.store.problems) this.log.warn(`config: ${p}`);
     this.loadState();
     this.faultLog = new FaultLog(paths.data);
-    this.toolPaths = { ffmpeg: which('ffmpeg') };
+    this.easLog = new EasLog(paths.data);
+    this.toolPaths = { ffmpeg: which('ffmpeg'), multimon: which('multimon-ng') };
     this.applyServices(this.store.config);
   }
 
@@ -124,7 +130,7 @@ export class Engine {
     }
   }
 
-  private snmpSource = () => ({ snap: this.latest ?? this.buildSnapshot() });
+  private snmpSource = () => ({ snap: this.latest ?? this.buildSnapshot(), eas: this.easLog.entries.findLast((e) => e.kind === 'message') });
 
   recordingsRoot = () => this.config.recordings_dir || path.join(this.paths.data, 'recordings');
 
@@ -187,6 +193,9 @@ export class Engine {
         faults: this.faultLog,
         bin: this.toolPaths.ffmpeg ?? 'ffmpeg',
         onFault: (rec) => this.onInputFault(rec),
+        multimonBin: this.toolPaths.multimon,
+        onEasTone: (i, active) => this.onEasTone(i, active),
+        onSame: (i, msg) => this.onSame(i, msg),
       });
       this.inputs.set(cfg.id, inp);
       if (this.running) inp.start();
@@ -205,8 +214,49 @@ export class Engine {
     return undefined;
   }
 
-  private trap(name: TrapName, id: string | null, subjectName: string, text: string) {
-    this.snmp.trap(name, id ? { id, name: subjectName } : null, text);
+  private trap(name: TrapName, id: string | null, subjectName: string, text: string, eas?: EasEntry) {
+    this.snmp.trap(name, id ? { id, name: subjectName } : null, text, eas);
+  }
+
+  /** The attention tone started or ended on an input: log it, mail it, trap it, and pulse the Zabbix items. */
+  private onEasTone(inp: LogInput, active: boolean) {
+    const { id, name } = inp.cfg;
+    const items: Item[] = [[this.config.zabbix.key_eas, active ? 1 : 0], [inputKey('eas', id), active ? 1 : 0]];
+    if (active) {
+      const msg = `EAS attention tone heard on ${name}`;
+      this.log.warn(msg, 'eas.log');
+      // The header is heard before the tone; keep its description (event, areas) on the dashboard.
+      if (!this.easLog.recentMessage(id)) this.easLast = { text: msg, at: Date.now() };
+      const now = Date.now() / 1000;
+      this.easLog.add({ kind: 'tone', input: id, input_name: name, ...this.chunkOf(inp, now) });
+      items.push([this.config.zabbix.key_event, msg]);
+      this.alerts.eas(name, now);
+      this.trap('easTone', id, name, msg);
+    }
+    void this.zbx.send(items, active);
+  }
+
+  /** A decoded SAME header (msg), or its end-of-message (null). */
+  private onSame(inp: LogInput, msg: SameMessage | null) {
+    const { id, name } = inp.cfg;
+    if (!msg) {
+      const e = this.easLog.endOfMessage(id);
+      if (e) this.log.info(`EAS end of message on ${name} (${e.event_name})`, 'eas.log');
+      return;
+    }
+    const entry = this.easLog.add({ kind: 'message', ...msg, input: id, input_name: name, ...this.chunkOf(inp, Date.now() / 1000) });
+    const text = `EAS ${msg.event_name} on ${name}: ${msg.summary}`;
+    this.log.warn(`${text} [${msg.raw}]`, 'eas.log');
+    this.easLast = { text, at: Date.now() };
+    void this.zbx.send([[this.config.zabbix.key_event, text], [inputKey('eas.message', id), `${msg.event_name}: ${msg.summary}`]], true);
+    this.alerts.easMessage(name, entry);
+    this.trap('easMessage', id, name, text, entry);
+  }
+
+  /** Which recording chunk holds audio heard now (0 when the input is not recording). */
+  private chunkOf(inp: LogInput, now: number) {
+    const rec = inp.cfg.record;
+    return { chunk_start: rec ? chunkStart(now, inp.cfg.chunk_minutes) : 0, chunk_minutes: rec ? inp.cfg.chunk_minutes : 0 };
   }
 
   private onInputFault(rec: FaultRecord) {
@@ -297,6 +347,7 @@ export class Engine {
       items.push([inputKey('state', i.id), i.status], [inputKey('up', i.id), i.status === 'live' ? 1 : 0], [inputKey('name', i.id), i.name],
         [inputKey('kind', i.id), i.kind], [inputKey('recording', i.id), i.recording ? 1 : 0]);
       for (const kind of ['link', 'silence', 'clip', 'mono', 'phase']) items.push([inputKey(`fault.${kind}`, i.id), i.faults.includes(kind) ? 1 : 0]);
+      items.push([inputKey('eas', i.id), i.eas_active ? 1 : 0]);
     }
     items.push([this.config.zabbix.key_active, snaps.filter((s) => s.status === 'live').length], [this.config.zabbix.key_heartbeat, 1]);
     await this.zbx.send(items);
@@ -338,6 +389,7 @@ export class Engine {
       time: Date.now(),
       inputs,
       disk: this.diskInfo(),
+      eas: { active: inputs.some((i) => i.eas_active), last: this.easLast.text, last_at: this.easLast.at, decoder: !!this.toolPaths.multimon },
       warnings: this.warnings(),
       services: {
         source: { enabled: c.source.enabled, port: c.source.port, push_inputs: c.inputs.filter((i) => i.kind === 'push' && i.enabled).length },
@@ -354,6 +406,7 @@ export class Engine {
   warnings(): string[] {
     const w: string[] = [];
     if (!this.toolPaths.ffmpeg) w.push('ffmpeg is not installed: no input can record or play.');
+    if (!this.toolPaths.multimon && this.config.inputs.some((i) => i.enabled && i.detect_eas)) w.push('multimon-ng is not installed: EAS attention tones are detected but SAME messages (event, areas, sender) are not decoded.');
     const c = this.clockCache.status;
     if (c?.available && !c.synchronized) w.push('The clock is not synchronised (chrony): recording times and fault times may be wrong. See Configuration → Clock.');
     else if (c?.available && c.offset_ms !== null && Math.abs(c.offset_ms) > 500) w.push(`The clock is ${Math.round(c.offset_ms)} ms off its time source; recording times may be wrong. See Configuration → Clock.`);
