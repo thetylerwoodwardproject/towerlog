@@ -24,7 +24,7 @@
   import FormSelect from '../common/FormSelect.svelte';
   import Toggle from './Toggle.svelte';
 
-  let { input, live, sourcePort, open = $bindable(false), onsaved, ondeleted }: {
+  let { input, live, sourcePort, open = $bindable(), onsaved, ondeleted }: {
     input: InputForm; live?: InputSnapshot; sourcePort: number; open?: boolean;
     onsaved: (i: InputForm) => void; ondeleted: (id: string) => void;
   } = $props();
