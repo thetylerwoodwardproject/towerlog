@@ -34,7 +34,7 @@
 | 🕐 **Clock-aligned recording** | 15, 30 or 60 minute files that always start on the clock (top of the hour, :15, :30, :45). The original codec is copied, never re-encoded; linear audio is stored as FLAC |
 | 🚨 **Fault detection** | Feed lost, silence (alert after 5 s, 10 s, 30 s, 1 min, 2 min, 5 min, 10 min or any custom time), clipping, mono and out-of-phase, each with its own delay; every raise and clear is logged |
 | 📟 **Email, SNMP and Zabbix** | SMTP alerts, an SNMP agent (v2c / v3) with traps and its own MIB, and a Zabbix trapper with a generated template |
-| 📊 **Live UI** | A card per input with VU and peak meters, fault chips, a listen-in player, recordings by day with playback and download, a waveform and spectrum view of each recording, and the fault history |
+| 📊 **Live UI** | A card per input with VU and peak meters, fault chips, a listen-in player, recordings by day with playback and download, a waveform and spectrogram view of each recording, and the fault history |
 | 🕰️ **Clock** | chrony keeps the host clock right (NTP servers set in the UI); the dashboard warns if it drifts or loses sync, since file times depend on it |
 | 🧹 **Retention** | Keep-days per input, plus a disk watermark that deletes the oldest recordings first |
 | 🔁 **Encoders can send to it** | Anything that can send to an Icecast server (ffmpeg, BUTT, Liquidsoap, a hardware encoder) can send to Towerlog instead and have the stream logged |

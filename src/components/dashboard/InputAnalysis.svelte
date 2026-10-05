@@ -1,5 +1,5 @@
 <script lang="ts">
-  // A recording at a glance: waveform, average/peak spectrum and spectrogram.
+  // A recording at a glance: waveform and spectrogram.
   // The server decodes the file once and caches the numbers; drawing is here.
   import { onMount } from 'svelte';
   import { fitCanvas } from '$lib/canvas';
@@ -13,12 +13,9 @@
   let loading = $state(false);
   let error = $state('');
   let wave = $state<HTMLCanvasElement>();
-  let spec = $state<HTMLCanvasElement>();
   let gram = $state<HTMLCanvasElement>();
   let seq = 0;
 
-  const DB_TOP = 0;
-  const DB_BOTTOM = -100;
   const css = (n: string, d: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || d;
 
   onMount(async () => {
@@ -83,37 +80,6 @@
     }
   }
 
-  function drawSpectrum(a: Analysis) {
-    if (!spec) return;
-    const { ctx, w, h } = fitCanvas(spec);
-    const border = css('--border', '#27272a'), mfg = css('--muted-foreground', '#71717a');
-    const fgc = css('--foreground', '#fafafa'), ok = css('--ok', '#4ade80');
-    ctx.clearRect(0, 0, w, h);
-    const L = 34, R = 8, T = 6, B = 16, pw = w - L - R, ph = h - T - B;
-    const f = a.spectrum.freqs, fmin = Math.log(f[0]), fmax = Math.log(f[f.length - 1]);
-    const X = (hz: number) => L + ((Math.log(hz) - fmin) / (fmax - fmin)) * pw;
-    const Y = (db: number) => T + ((DB_TOP - Math.max(DB_BOTTOM, Math.min(DB_TOP, db))) / (DB_TOP - DB_BOTTOM)) * ph;
-    ctx.font = '10px ui-monospace, monospace'; ctx.fillStyle = mfg; ctx.strokeStyle = border; ctx.lineWidth = 1;
-    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-    for (let d = DB_TOP; d >= DB_BOTTOM; d -= 20) {
-      ctx.beginPath(); ctx.moveTo(L, Math.round(Y(d)) + 0.5); ctx.lineTo(w - R, Math.round(Y(d)) + 0.5); ctx.stroke();
-      ctx.fillText(String(d), L - 4, Y(d));
-    }
-    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    for (const hz of AXIS) {
-      if (hz < f[0] || hz > f[f.length - 1]) continue;
-      ctx.beginPath(); ctx.moveTo(Math.round(X(hz)) + 0.5, T); ctx.lineTo(Math.round(X(hz)) + 0.5, T + ph); ctx.stroke();
-      ctx.fillText(khz(hz), X(hz), h);
-    }
-    const line = (vals: number[]) => { ctx.beginPath(); vals.forEach((v, i) => (i ? ctx.lineTo(X(f[i]), Y(v)) : ctx.moveTo(X(f[i]), Y(v)))); };
-    ctx.strokeStyle = mfg; ctx.lineWidth = 1; line(a.spectrum.peak_db); ctx.stroke();
-    line(a.spectrum.avg_db);
-    ctx.lineTo(X(f[f.length - 1]), T + ph); ctx.lineTo(X(f[0]), T + ph); ctx.closePath();
-    ctx.globalAlpha = 0.18; ctx.fillStyle = ok; ctx.fill(); ctx.globalAlpha = 1;
-    ctx.strokeStyle = ok; ctx.lineWidth = 1.5; line(a.spectrum.avg_db); ctx.stroke();
-    ctx.fillStyle = fgc;
-  }
-
   function drawGram(a: Analysis) {
     if (!gram) return;
     const { ctx, w, h } = fitCanvas(gram);
@@ -133,7 +99,7 @@
     const L = 34, R = 8, B = 16, pw = w - L - R, ph = h - B;
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(off, L, 0, pw, ph);
-    const f = a.spectrum.freqs, fmin = Math.log(f[0]), fmax = Math.log(f[f.length - 1]);
+    const f = a.spectrogram.freqs, fmin = Math.log(f[0]), fmax = Math.log(f[f.length - 1]);
     ctx.font = '10px ui-monospace, monospace'; ctx.fillStyle = mfg; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     for (const hz of AXIS) {
       if (hz < f[0] || hz > f[f.length - 1]) continue;
@@ -146,9 +112,9 @@
 
   function draw() {
     if (!data) return;
-    drawWave(data); drawSpectrum(data); drawGram(data);
+    drawWave(data); drawGram(data);
   }
-  $effect(() => { if (data && wave && spec && gram) draw(); });
+  $effect(() => { if (data && wave && gram) draw(); });
   onMount(() => {
     const onResize = () => draw();
     addEventListener('resize', onResize);
@@ -175,10 +141,6 @@
     <figure class="rounded-lg border p-3">
       <figcaption class="mb-2 text-xs font-medium text-muted-foreground">Waveform</figcaption>
       <canvas bind:this={wave} class="h-32 w-full" aria-label="Waveform of the recording"></canvas>
-    </figure>
-    <figure class="rounded-lg border p-3">
-      <figcaption class="mb-2 flex flex-wrap gap-x-4 text-xs font-medium text-muted-foreground">Spectrum <span class="font-normal text-ok">average</span> <span class="font-normal">peak</span> <span class="font-normal">dB per FFT bin, 0 = full-scale tone</span></figcaption>
-      <canvas bind:this={spec} class="h-56 w-full" aria-label="Average and peak spectrum"></canvas>
     </figure>
     <figure class="rounded-lg border p-3">
       <figcaption class="mb-2 text-xs font-medium text-muted-foreground">Spectrogram</figcaption>

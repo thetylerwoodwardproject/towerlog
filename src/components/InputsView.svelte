@@ -60,7 +60,7 @@
       {#if sel}
         {#key sel.id}
           <Tabs.Root value="recordings" class="gap-4">
-            <Tabs.List><Tabs.Trigger value="recordings">Recordings · {sel.name}</Tabs.Trigger><Tabs.Trigger value="analysis">Spectrum · {sel.name}</Tabs.Trigger><Tabs.Trigger value="faults">Faults · {sel.name}</Tabs.Trigger><Tabs.Trigger value="all">All faults</Tabs.Trigger></Tabs.List>
+            <Tabs.List><Tabs.Trigger value="recordings">Recordings · {sel.name}</Tabs.Trigger><Tabs.Trigger value="analysis">Analysis · {sel.name}</Tabs.Trigger><Tabs.Trigger value="faults">Faults · {sel.name}</Tabs.Trigger><Tabs.Trigger value="all">All faults</Tabs.Trigger></Tabs.List>
             <Tabs.Content value="recordings"><InputRecordings id={sel.id} /></Tabs.Content>
             <Tabs.Content value="analysis"><InputAnalysis id={sel.id} /></Tabs.Content>
             <Tabs.Content value="faults"><FaultLog input={sel.id} /></Tabs.Content>

@@ -19,11 +19,15 @@ describe('recording analysis', () => {
     expect(a.duration).toBeGreaterThan(4.9);
     expect(a.wave.max.length).toBeGreaterThan(50);
     expect(Math.max(...a.wave.max)).toBeGreaterThan(0.05);
-    const top = a.spectrum.avg_db.indexOf(Math.max(...a.spectrum.avg_db));
-    expect(Math.abs(a.spectrum.freqs[top] - 1000)).toBeLessThan(150);
-    expect(a.spectrum.avg_db[top]).toBeGreaterThan(-30);
-    expect(a.spectrum.avg_db[a.spectrum.avg_db.length - 1]).toBeLessThan(-80);
-    expect(Buffer.from(a.spectrogram.data, 'base64').length).toBe(a.spectrogram.cols * a.spectrogram.bands);
+    const { freqs, cols, bands, data } = a.spectrogram;
+    const bytes = Buffer.from(data, 'base64');
+    // Loudest band in the middle column is the tone; the top band is silent.
+    const col = bytes.subarray(Math.floor(cols / 2) * bands, Math.floor(cols / 2) * bands + bands);
+    const top = col.indexOf(Math.max(...col));
+    expect(Math.abs(freqs[top] - 1000)).toBeLessThan(150);
+    expect(col[top]).toBeGreaterThan(180);
+    expect(col[bands - 1]).toBeLessThan(20);
+    expect(bytes.length).toBe(cols * bands);
   });
 
   it('rejects a file with no audio', async () => {

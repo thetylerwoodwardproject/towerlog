@@ -1,5 +1,5 @@
-// Picture of one recording for the Analysis tab: a waveform envelope, the average
-// and peak spectrum, and a spectrogram. ffmpeg decodes the file to mono PCM; the
+// Picture of one recording for the Analysis tab: a waveform envelope and a
+// spectrogram. ffmpeg decodes the file to mono PCM; the
 // numbers are computed here in one pass. Results are cached next to the recording
 // as <file>.analysis.json (pruneInput and purgeForSpace delete them with the audio).
 import fs from 'node:fs';
@@ -71,8 +71,6 @@ export class Analyzer {
   private im = new Float64Array(FFT);
   private win = Float64Array.from({ length: FFT }, (_, i) => 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (FFT - 1)));
   private band = bandEdges(ANALYSIS_RATE);
-  private sum = new Float64Array(BANDS);
-  private peak = new Float64Array(BANDS).fill(DB_FLOOR);
   private frames: Float32Array[] = [];
   /** Waveform min/max per FFT-sized block. */
   private blockMin: number[] = [];
@@ -104,8 +102,6 @@ export class Analyzer {
       for (let k = edges[b]; k < edges[b + 1]; k++) p += this.re[k] * this.re[k] + this.im[k] * this.im[k];
       const d = db((p * norm) / (edges[b + 1] - edges[b]));
       row[b] = d;
-      this.sum[b] += Math.pow(10, d / 10);
-      if (d > this.peak[b]) this.peak[b] = d;
     }
     this.frames.push(row);
   }
@@ -133,17 +129,12 @@ export class Analyzer {
       }
     }
     return {
-      version: 1,
+      version: 2,
       size: 0,
       mtime: 0,
       duration: this.samples / ANALYSIS_RATE,
       wave,
-      spectrum: {
-        freqs: this.band.freqs,
-        avg_db: Array.from(this.sum, (s) => +db(n ? s / n : 0).toFixed(1)),
-        peak_db: Array.from(this.peak, (p) => +p.toFixed(1)),
-      },
-      spectrogram: { cols, bands: BANDS, floor_db: DB_FLOOR, data: Buffer.from(grid).toString('base64') },
+      spectrogram: { freqs: this.band.freqs, cols, bands: BANDS, floor_db: DB_FLOOR, data: Buffer.from(grid).toString('base64') },
     };
   }
 }
@@ -180,7 +171,7 @@ export function readCached(file: string): Analysis | null {
   try {
     const st = fs.statSync(file);
     const c = JSON.parse(fs.readFileSync(file + ANALYSIS_SUFFIX, 'utf8')) as Analysis;
-    return c.version === 1 && c.size === st.size && c.mtime === st.mtimeMs ? c : null;
+    return c.version === 2 && c.size === st.size && c.mtime === st.mtimeMs ? c : null;
   } catch { return null; }
 }
 
