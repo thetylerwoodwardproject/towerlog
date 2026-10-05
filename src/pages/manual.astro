@@ -118,7 +118,7 @@ const toc = [
       <ul>
         <li><b>Keep days</b> per input deletes older files (checked hourly). 0 keeps everything.</li>
         <li><b>Disk watermark</b> (Configuration → System → Storage): when free space falls under the number of GB you set, the oldest recordings across all inputs are deleted, but never one written in the last 2 hours. 0 turns it off.</li>
-        <li>The <b>recordings folder</b> can be moved to another disk under <code>/mnt</code>, <code>/media</code> or <code>/srv</code> (add more with <code>TOWERLOG_RECORDINGS_ROOTS</code>).</li>
+        <li>The <b>recordings folder</b> can be moved to another disk under <code>/mnt</code>, <code>/media</code> or <code>/srv</code> (add more with <code>TOWERLOG_RECORDINGS_ROOTS</code>). For an external drive: mount it (for example at <code>/mnt/audio</code>, with an <code>/etc/fstab</code> line so it returns after a reboot), run <code>sudo chown towerlog: /mnt/audio</code>, then enter the folder there. Existing recordings stay in the old folder, and inputs restart when the folder changes. Towerlog never creates this folder itself: if the drive is unplugged, inputs keep monitoring and raising faults but show "not recording", and recording resumes on its own when the drive returns.</li>
         <li>Set the host's time zone and clock correctly: file names and cuts follow its local time.</li>
       </ul>
       </section>

@@ -58,6 +58,8 @@ export interface InputSnapshot {
   /** True while an EAS attention tone is being heard on this input. */
   eas_active: boolean;
   recording: boolean;
+  /** Why a recording input is not recording (recordings folder missing or unwritable), '' otherwise. */
+  record_error: string;
   chunk_minutes: number;
   /** Seconds since the feed last delivered audio, null if it never has. */
   idle_s: number | null;

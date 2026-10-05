@@ -26,6 +26,7 @@ describe.skipIf(!hasFfmpeg)('RTP and Livewire inputs', () => {
 
   async function run(cfgExtra: Record<string, unknown>, send: () => ChildProcess) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'towerlog-rtp-'));
+    fs.mkdirSync(path.join(dir, 'rec'));
     const cfg = InputSchema.parse({ id: 'r', name: 'RTP Test', ...cfgExtra });
     const input = new LogInput(cfg, { recordRoot: path.join(dir, 'rec'), workDir: path.join(dir, 'work'), log: quietLogger(), faults: new FaultLog(dir) });
     cleanup.push(() => input.stop(), () => fs.rmSync(dir, { recursive: true, force: true }));

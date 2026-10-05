@@ -95,6 +95,7 @@ export class Engine {
     this.easLog = new EasLog(paths.data);
     this.toolPaths = { ffmpeg: which('ffmpeg'), 'multimon-ng': which('multimon-ng') };
     this.applyServices(this.store.config);
+    this.ensureDefaultRecordings();
   }
 
   get config(): Config { return this.store.config; }
@@ -131,6 +132,12 @@ export class Engine {
   }
 
   private snmpSource = () => ({ snap: this.latest ?? this.buildSnapshot(), eas: this.easLog.entries.findLast((e) => e.kind === 'message') });
+
+  /** The default recordings folder is ours to create; a custom one (an external drive) never is. */
+  private ensureDefaultRecordings() {
+    if (this.config.recordings_dir) return;
+    try { fs.mkdirSync(this.recordingsRoot(), { recursive: true }); } catch { /* reported when recording fails */ }
+  }
 
   recordingsRoot = () => this.config.recordings_dir || path.join(this.paths.data, 'recordings');
 
@@ -184,10 +191,11 @@ export class Engine {
       void inp.stop();
       this.log.info(`input ${inp.cfg.name}: ${wanted.has(id) ? 'settings changed, restarting' : 'removed'}`);
     }
+    const root = () => this.recordingsRoot();
     for (const cfg of c.inputs) {
       if (this.inputs.has(cfg.id)) continue;
       const inp = new LogInput(structuredClone(cfg), {
-        recordRoot: this.recordingsRoot(),
+        get recordRoot() { return root(); },
         workDir: path.join(this.paths.data, 'sdp'),
         log: this.log,
         faults: this.faultLog,
@@ -510,13 +518,22 @@ export class Engine {
         throw new HttpError(400, `${d} does not exist`);
       }
       if (!fs.statSync(real).isDirectory()) throw new HttpError(400, `${d} is not a folder`);
+      try {
+        fs.accessSync(real, fs.constants.W_OK | fs.constants.X_OK);
+      } catch {
+        throw new HttpError(400, `Towerlog's service user cannot write to ${d}; give it the folder, for example: sudo chown -R towerlog: ${d}`);
+      }
       const roots = this.recordingRoots();
       const ok = roots.some((r) => (r.self && real === r.path) || isInside(r.path, real));
       if (!ok) {
         throw new HttpError(400, `recordings folder must be inside ${roots.map((r) => r.path).join(', ')} (more with TOWERLOG_RECORDINGS_ROOTS)`);
       }
     }
+    const changed = d !== this.config.recordings_dir;
     this.store.update((c) => { c.recordings_dir = d; });
+    if (!d) this.ensureDefaultRecordings();
+    // Running ffmpegs write to the old folder until they restart.
+    if (changed && this.running) void this.restartInputs();
   }
 
   async testEmail(to?: string) {

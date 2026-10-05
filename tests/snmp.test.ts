@@ -16,8 +16,8 @@ const snap = {
   type: 'snapshot', version: '2026.10.04', hostname: 'test', uptime_s: 12, time: 0, warnings: [], disk: null,
   services: {}, eas: { active: true, last: 'EAS attention tone heard on Studio A', last_at: 1, decoder: true },
   inputs: [
-    { id: 'studio-a', name: 'Studio A', kind: 'http', status: 'live', detail: '', meter: meter(-20, -21), faults: [], silent_s: 0, recording: true, chunk_minutes: 15, idle_s: 0, up_since: 1, eas_active: true },
-    { id: 'barix', name: 'Barix', kind: 'push', status: 'down', detail: 'source disconnected', meter: meter(-90, -90), faults: ['link'], silent_s: 0, recording: false, chunk_minutes: 60, idle_s: 30, up_since: null, eas_active: false },
+    { id: 'studio-a', name: 'Studio A', kind: 'http', status: 'live', detail: '', meter: meter(-20, -21), faults: [], silent_s: 0, recording: true, record_error: '', chunk_minutes: 15, idle_s: 0, up_since: 1, eas_active: true },
+    { id: 'barix', name: 'Barix', kind: 'push', status: 'down', detail: 'source disconnected', meter: meter(-90, -90), faults: ['link'], silent_s: 0, recording: false, record_error: '', chunk_minutes: 60, idle_s: 30, up_since: null, eas_active: false },
   ],
 } as unknown as Snapshot;
 
