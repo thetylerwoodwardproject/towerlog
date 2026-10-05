@@ -1,6 +1,6 @@
 <script lang="ts">
   // Host network: interfaces (DHCP / static, with automatic rollback), Wi-Fi,
-  // host name and time. Addresses change through NetworkManager, or through the
+  // and host name. Addresses change through NetworkManager, or through the
   // towerlog-netapply helper on hosts using netplan, systemd-networkd, ifupdown or
   // dhcpcd; view-only when neither is available. Wi-Fi needs NetworkManager.
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
@@ -8,14 +8,12 @@
   import { onMount } from 'svelte';
   import { Button } from '$lib/components/ui/button/index.js';
   import { Input } from '$lib/components/ui/input/index.js';
-  import { Switch } from '$lib/components/ui/switch/index.js';
   import { Skeleton } from '$lib/components/ui/skeleton/index.js';
   import { attempt, del, get, post, put } from '$lib/api';
   import Section from './Section.svelte';
   import Panel from './Panel.svelte';
   import Field from './Field.svelte';
   import Segmented from '../common/Segmented.svelte';
-  import FormSelect from '../common/FormSelect.svelte';
   import StatusBadge from '../common/StatusBadge.svelte';
 
   type Iface = { device: string; type: string; state: string; mac: string; connection: string; method: 'auto' | 'manual' | 'unknown'; ipv4: string[]; ipv6: string[]; gateway: string; dns: string[] };
@@ -30,9 +28,6 @@
   let joining = $state<Wifi | null>(null);
   let wifiPw = $state('');
   let hostname = $state('');
-  let tz = $state('');
-  let zones = $state<string[]>([]);
-  let ntpServers = $state('');
   let now = $state(Date.now());
   const IN = 'h-9 font-mono text-[13px]';
 
@@ -41,15 +36,12 @@
     if (!r) return;
     s = r;
     hostname = r.hostname;
-    tz = r.time.timezone;
-    ntpServers = r.time.servers.join(' ');
     for (const i of r.interfaces) {
       drafts[i.device] ??= { method: i.method === 'manual' ? 'manual' : 'auto', address: i.ipv4[0] ?? '', gateway: i.gateway, dns: i.dns.join(', ') };
     }
   }
   onMount(() => {
     load();
-    get<{ timezones: string[] }>('/api/network/time').then((r) => (zones = r.timezones)).catch(() => {});
     const t = setInterval(() => (now = Date.now()), 1000);
     return () => clearInterval(t);
   });
@@ -82,15 +74,10 @@
   }
   const forget = async (con: string) => { if (confirm(`Forget ${con}?`)) { await attempt('Wi-Fi', () => del(`/api/network/wifi/${encodeURIComponent(con)}`), `Forgot ${con}`); load(); } };
   const saveHostname = () => attempt('Host name', () => put('/api/network/hostname', { hostname }), 'Host name saved');
-  async function saveTime() {
-    await attempt('Time', () => put('/api/network/time', { timezone: tz, servers: ntpServers.split(/[\s,]+/).filter(Boolean) }), 'Time settings saved');
-    load();
-  }
-  const setNtp = async (on: boolean) => { await attempt('NTP', () => put('/api/network/time', { ntp: on })); load(); };
   const bars = (sig: number) => (sig >= 75 ? 4 : sig >= 50 ? 3 : sig >= 25 ? 2 : 1);
 </script>
 
-<Section title="Network" description={s ? `Addresses, Wi-Fi, host name and time for this Towerlog. Managed by ${s.backend_name}.` : 'Addresses, Wi-Fi, host name and time for this Towerlog.'} wide>
+<Section title="Network" description={s ? `Addresses, Wi-Fi and host name for this Towerlog. Managed by ${s.backend_name}.` : 'Addresses, Wi-Fi and host name for this Towerlog.'} wide>
   {#snippet actions()}
     <Button variant="outline" class="h-8 px-3" onclick={load}><RefreshCw /> Refresh</Button>
   {/snippet}
@@ -158,30 +145,12 @@
       {/each}
     </div>
 
-    <div class="grid items-stretch gap-5 lg:grid-cols-2">
-      <Panel title="Host name" class="flex flex-col">
-        <form class="flex flex-1 flex-col gap-4 p-5 max-sm:p-4" onsubmit={(e) => { e.preventDefault(); saveHostname(); }}>
-          <Field label="Host name" hint="Letters, digits and hyphens"><Input class={IN} bind:value={hostname} /></Field>
-          <div class="mt-auto"><Button type="submit" class="h-9 px-4">Save host name</Button></div>
-        </form>
-      </Panel>
-      <Panel title="Time" class="flex flex-col">
-        {#snippet head()}
-          <StatusBadge tone={s?.time.synchronized ? 'ok' : 'warn'} class="ml-auto">{s?.time.synchronized ? 'synchronised' : 'not synchronised'}</StatusBadge>
-        {/snippet}
-        <div class="flex flex-1 flex-col gap-4 p-5 max-sm:p-4">
-          <label class="flex items-center gap-3 text-[13px]"><span class="flex-1 font-medium">Set the clock automatically (NTP)</span>
-            <Switch checked={s.time.ntp} onCheckedChange={(v: boolean) => setNtp(v)} /></label>
-          <div class="grid gap-4 sm:grid-cols-2">
-            <Field label="Time zone">
-              {#if zones.length}<FormSelect bind:value={tz} options={zones.map((z) => [z, z] as [string, string])} />{:else}<Input class={IN} bind:value={tz} />{/if}
-            </Field>
-            <Field label="NTP servers" hint="Followed by chrony. Space or comma separated; blank = the host defaults. Use your own NTP or GPS time server if you have one."><Input class={IN} bind:value={ntpServers} placeholder="pool.ntp.org" /></Field>
-          </div>
-          <div class="mt-auto"><Button class="h-9 px-4" onclick={saveTime}>Save time settings</Button></div>
-        </div>
-      </Panel>
-    </div>
+    <Panel title="Host name" class="max-w-xl">
+      <form class="flex flex-col gap-4 p-5 max-sm:p-4" onsubmit={(e) => { e.preventDefault(); saveHostname(); }}>
+        <Field label="Host name" hint="Letters, digits and hyphens"><Input class={IN} bind:value={hostname} /></Field>
+        <div class="mt-auto"><Button type="submit" class="h-9 px-4">Save host name</Button></div>
+      </form>
+    </Panel>
 
     <Panel title="Wi-Fi">
       {#snippet head()}

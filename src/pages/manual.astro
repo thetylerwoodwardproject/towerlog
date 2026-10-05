@@ -169,10 +169,11 @@ const toc = [
         Keep it right with <b>chrony</b>, which the installer sets up. Open <a href="/config#clock">Configuration → Clock</a>:</p>
       <ul>
         <li><b>Status</b> shows whether the clock is synchronised, which server it follows, how far off it is (in milliseconds) and when it last updated. The dashboard warns when it is not synchronised or is more than half a second out.</li>
+        <li><b>Time zone and automatic time</b> sets the host's time zone and switches NTP on or off.</li>
         <li><b>NTP servers</b>: type host names or addresses separated by spaces and save. Leave it blank to use the host's own chrony defaults. If you have your own NTP or GPS time server, put it first. Towerlog writes the list to <code>/etc/chrony/sources.d/towerlog.sources</code> and chrony re-reads it at once; Towerlog never runs as root.</li>
         <li><b>Servers chrony is using</b> lists each one with its stratum, offset and whether it is in use, on standby or unreachable.</li>
       </ul>
-      <p>The time zone is the host's (set with <code>timedatectl set-timezone</code>); it decides what "top of the hour" means for the file names. In Docker the clock belongs to the host, so the Clock page is read-only there: set up chrony on the host.
+      <p>The time zone is the host's (set it here, or with <code>timedatectl set-timezone</code>); it decides what "top of the hour" means for the file names. In Docker the clock belongs to the host, so the Clock page is read-only there: set up chrony on the host.
         If the page says the servers can't be changed, re-run the installer so it can create the sources folder.</p>
       </section>
 

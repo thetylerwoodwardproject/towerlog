@@ -250,7 +250,8 @@ export class NetworkManagerCtl {
     }));
   }
 
-  private async timeStatus(): Promise<NetStatus['time']> {
+  /** Time zone, NTP on/off and sync state (the Clock page shows and sets these). */
+  async timeStatus(): Promise<NetStatus['time']> {
     const t = { timezone: '', ntp: false, synchronized: false, servers: [] as string[] };
     try {
       const out = await this.run('timedatectl', ['show']);

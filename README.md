@@ -36,8 +36,8 @@
 | 🚨 **EAS alerts** | Hears the EAS attention tone on every input and decodes the SAME header (event, areas, sender, validity) with multimon-ng. Each alert goes to an EAS log with the recording file that holds it, and out by email, SNMP and Zabbix |
 | 📟 **Email, SNMP and Zabbix** | SMTP alerts, an SNMP agent (v2c / v3) with traps and its own MIB, and a Zabbix trapper with a generated template |
 | 📊 **Live UI** | A card per input with VU and peak meters, fault chips, a listen-in player, recordings by day with playback and download, waveform, LUFS, spectrum and spectrogram views with a moving playhead of each recording, and the fault history |
-| 🌐 **Network settings** | Addresses (DHCP or static, with an automatic 90 s rollback), Wi-Fi, host name, time zone and NTP servers from Configuration → Network, the same page as Pi-Tuner. Works through NetworkManager, or a small root helper on netplan, systemd-networkd, ifupdown and dhcpcd; view-only in a container |
-| 🕰️ **Clock** | chrony keeps the host clock right (NTP servers set in the UI); the dashboard warns if it drifts or loses sync, since file times depend on it |
+| 🌐 **Network settings** | Addresses (DHCP or static, with an automatic 90 s rollback), Wi-Fi and host name from Configuration → Network, the same page as Pi-Tuner. Works through NetworkManager, or a small root helper on netplan, systemd-networkd, ifupdown and dhcpcd; view-only in a container |
+| 🕰️ **Clock** | chrony keeps the host clock right (time zone, automatic time and NTP servers set in Configuration → Clock); the dashboard warns if it drifts or loses sync, since file times depend on it |
 | 🧹 **Retention** | Keep-days per input, plus a disk watermark that deletes the oldest recordings first |
 | 🔁 **Encoders can send to it** | Anything that can send to an Icecast server (ffmpeg, BUTT, Liquidsoap, a hardware encoder) can send to Towerlog instead and have the stream logged |
 
