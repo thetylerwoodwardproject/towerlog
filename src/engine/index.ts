@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import type { FaultRecord, InputSnapshot, LogLine, Snapshot } from '../lib/types.ts';
+import type { Analysis, FaultRecord, InputSnapshot, LogLine, Snapshot } from '../lib/types.ts';
 import {
   ConfigStore, InputSchema, ZabbixSchema, SmtpSchema, SnmpSchema, defaultPaths, keepSecret,
   inputProblem, redactConfig, safeMount, writeFileAtomic, secretGiven,
@@ -23,6 +23,7 @@ import { buildMib, type TrapName } from './snmp-mib.ts';
 import { LogInput } from './inputs/input.ts';
 import { FaultLog } from './inputs/faultlog.ts';
 import { listChunks, purgeForSpace } from './inputs/record.ts';
+import { analyzeFile, readCached, writeCached } from './inputs/analyze.ts';
 import { FAULT_LABEL } from './faults.ts';
 import { parseServers, readClock, sourcesWritable, writeSources, validNtpServer, type ClockSource, type ClockStatus } from './clock.ts';
 import { recName, recordingDir } from './recorder.ts';
@@ -540,6 +541,32 @@ export class Engine {
     }
     if (!isInside(root, full) || !/\.(mp3|aac|flac|mka)$/.test(full)) return null;
     try { return fs.statSync(full).isFile() ? full : null; } catch { return null; }
+  }
+
+  private analyses = new Map<string, Promise<Analysis>>();
+  private analysisQueue: Promise<unknown> = Promise.resolve();
+
+  /** Waveform and spectrum of a recording; cached beside it, one analysis at a time. */
+  recordingAnalysis(rel: string): Promise<Analysis> {
+    const file = this.recordingFile(rel);
+    if (!file) throw new HttpError(404, 'no such recording');
+    const cached = readCached(file);
+    if (cached) return Promise.resolve(cached);
+    let job = this.analyses.get(file);
+    if (!job) {
+      const run = async () => {
+        const st = fs.statSync(file);
+        const a = { ...(await analyzeFile(file)), size: st.size, mtime: st.mtimeMs };
+        writeCached(file, a);
+        return a;
+      };
+      job = this.analysisQueue.then(run, run).catch((e: Error) => { throw new HttpError(500, `cannot analyse: ${e.message}`); });
+      this.analysisQueue = job.catch(() => undefined);
+      this.analyses.set(file, job);
+      const forget = () => this.analyses.delete(file);
+      job.then(forget, forget);
+    }
+    return job;
   }
 
   recordingDirFor(name: string) { return recordingDir(this.recordingsRoot(), name); }
