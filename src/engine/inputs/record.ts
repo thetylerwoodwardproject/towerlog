@@ -32,9 +32,15 @@ export function ffmpegArgs(cfg: InputConfig, src: Source, recordRoot: string | n
 
 /**
  * The segment muxer cannot create folders, so today's and tomorrow's must exist
- * before a cut needs them. Call at start and from the once-a-second tick.
+ * before a cut needs them. Call at start and from the once-a-second tick. Throws when the
+ * recordings folder is missing or unwritable.
  */
 export function ensureDayDirs(root: string, name: string, now: number): void {
+  // Never create the recordings folder itself: a missing one means an unplugged or unmounted
+  // drive, and recreating it would quietly fill the system disk instead.
+  if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) {
+    throw new Error(`recordings folder ${root} is missing (is the drive mounted?)`);
+  }
   for (const when of [now, now + 86400]) fs.mkdirSync(dayDir(root, name, when), { recursive: true });
 }
 

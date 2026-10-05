@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -118,5 +119,20 @@ describe('clock settings in the engine', () => {
     const c = await e.clock();
     expect(c.writable).toBe(true);
     delete process.env.TOWERLOG_CHRONY_DIR;
+  });
+});
+
+describe('recordings folder', () => {
+  it('creates the default folder but only accepts a custom one that exists and is writable', () => {
+    const e = engine();
+    expect(fs.statSync(e.recordingsRoot()).isDirectory()).toBe(true);
+    const ro = path.join(e.paths.data, 'ro');
+    fs.mkdirSync(ro, { mode: 0o500 });
+    expect(failure(() => e.saveRecordingsDir(ro))).toMatch(/cannot write/);
+    const ok = path.join(e.paths.data, 'drive');
+    fs.mkdirSync(ok);
+    e.saveRecordingsDir(ok);
+    expect(e.recordingsRoot()).toBe(ok);
+    fs.chmodSync(ro, 0o700);
   });
 });

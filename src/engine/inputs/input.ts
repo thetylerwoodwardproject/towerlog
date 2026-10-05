@@ -58,6 +58,10 @@ export class LogInput {
   private upSince: number | null = null;
   private silentSince: number | null = null;
   private restartAt = 0;
+  /** Why the recordings folder can't be used right now ('' when it can). Monitoring carries on without recording. */
+  private recError = '';
+  /** Whether the running ffmpeg was started with recording on. */
+  private recStarted = false;
   private backoff = RESTART_MIN;
   private nextPrune = 0;
   private tracker: FaultTracker;
@@ -160,8 +164,9 @@ export class LogInput {
         return;
       }
     }
-    if (this.recording) ensureDayDirs(this.ctx.recordRoot, cfg.name, now);
-    const args = ffmpegArgs(cfg, src, this.recording ? this.ctx.recordRoot : null);
+    const rec = this.recording && this.recFolderReady(now);
+    this.recStarted = rec;
+    const args = ffmpegArgs(cfg, src, rec ? this.ctx.recordRoot : null);
     this.aligner = new FrameAligner(4);
     this.setStatus('connecting', cfg.kind === 'push' ? 'source connected' : 'connecting');
     const proc = new Proc(
@@ -214,6 +219,21 @@ export class LogInput {
     if (this.wanted && this.cfg.kind !== 'push') this.scheduleRestart(Date.now() / 1000);
   }
 
+  /** Make today's and tomorrow's folders; on failure remember why (and log it once) instead of throwing. */
+  private recFolderReady(now: number): boolean {
+    try {
+      ensureDayDirs(this.ctx.recordRoot, this.cfg.name, now);
+      if (this.recError) this.ctx.log.warn(`${this.cfg.name}: recordings folder is usable again`);
+      this.recError = '';
+      return true;
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg !== this.recError) this.ctx.log.error(`${this.cfg.name}: not recording: ${msg}`);
+      this.recError = msg;
+      return false;
+    }
+  }
+
   private scheduleRestart(now: number) {
     this.restartAt = now + this.backoff;
     this.backoff = Math.min(RESTART_MAX, this.backoff * 2);
@@ -222,7 +242,13 @@ export class LogInput {
   /** Once a second, with epoch seconds. */
   tick(now: number) {
     if (!this.wanted) return;
-    if (this.recording) ensureDayDirs(this.ctx.recordRoot, this.cfg.name, now);
+    if (this.recording) {
+      const ready = this.recFolderReady(now);
+      // The folder came back (drive remounted) while ffmpeg runs without recording: restart it with recording.
+      if (ready && this.proc && !this.recStarted) {
+        if (this.cfg.kind === 'push') this.detachPush(); else void this.proc.stop();
+      }
+    }
     if (!this.proc && this.cfg.kind !== 'push' && now >= this.restartAt) this.spawn(now);
     if (this.recording && this.cfg.keep_days > 0 && now >= this.nextPrune) {
       this.nextPrune = now + PRUNE_EVERY;
@@ -289,7 +315,8 @@ export class LogInput {
         : { peak_db: [-90, -90], rms_db: [-90, -90] },
       faults: this.tracker.active(),
       silent_s: this.silentSince === null ? 0 : Math.max(0, Math.floor(now - this.silentSince)),
-      recording: this.recording && this.status === 'live',
+      recording: this.recording && this.status === 'live' && !this.recError,
+      record_error: this.recording ? this.recError : '',
       chunk_minutes: this.cfg.chunk_minutes,
       idle_s: this.lastDataAt === null ? null : Math.max(0, Math.floor(now - this.lastDataAt)),
       up_since: this.upSince,

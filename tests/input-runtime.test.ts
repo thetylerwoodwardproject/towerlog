@@ -43,6 +43,7 @@ describe.skipIf(!hasFfmpeg)('LogInput against a live HTTP feed', () => {
 
   function mk(url: string, o: Record<string, unknown> = {}) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'towerlog-i-'));
+    fs.mkdirSync(path.join(dir, 'rec'));
     const events: FaultRecord[] = [];
     const cfg = InputSchema.parse({ id: 'a', name: 'Tone', kind: 'http', url, link_secs: 2, silence_secs: 3, ...o });
     const input = new LogInput(cfg, { recordRoot: path.join(dir, 'rec'), workDir: path.join(dir, 'work'), log: quietLogger(), faults: new FaultLog(dir), onFault: (r) => events.push(r) });
@@ -189,6 +190,33 @@ describe.skipIf(!hasFfmpeg)('display meter', () => {
         expect(input.snapshot(Date.now() / 1000).meter.rms_db[0]).toBeGreaterThan(-60);
       }
       expect(input.levelDb()).toBeLessThan(0);
+    } finally {
+      await input.stop();
+      await feed.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30000);
+});
+
+describe.skipIf(!hasFfmpeg)('recordings folder missing', () => {
+  it('keeps monitoring without recording, then records once the folder is back', async () => {
+    const feed = await feedServer();
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'towerlog-g-'));
+    const root = path.join(dir, 'drive'); // an unmounted drive: not there
+    const cfg = InputSchema.parse({ id: 'a', name: 'Tone', kind: 'http', url: feed.url, link_secs: 2, silence_secs: 3 });
+    const input = new LogInput(cfg, { recordRoot: root, workDir: path.join(dir, 'work'), log: quietLogger(), faults: new FaultLog(dir) });
+    try {
+      input.start();
+      for (let i = 0; i < 10 && input.status !== 'live'; i++) { input.tick(Date.now() / 1000); await sleep(500); }
+      const snap = input.snapshot(Date.now() / 1000);
+      expect(snap.status).toBe('live');
+      expect(snap.recording).toBe(false);
+      expect(snap.record_error).toMatch(/is missing/);
+      expect(fs.existsSync(root)).toBe(false); // never recreated behind the operator's back
+      fs.mkdirSync(root);
+      for (let i = 0; i < 20 && !input.snapshot(Date.now() / 1000).recording; i++) { input.tick(Date.now() / 1000); await sleep(500); }
+      expect(input.snapshot(Date.now() / 1000).recording).toBe(true);
+      expect(input.snapshot(Date.now() / 1000).record_error).toBe('');
     } finally {
       await input.stop();
       await feed.close();

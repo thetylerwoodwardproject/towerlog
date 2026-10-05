@@ -20,6 +20,7 @@ describe.skipIf(!hasFfmpeg)('Icecast source endpoint', () => {
 
   async function setup() {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'towerlog-s-'));
+    fs.mkdirSync(path.join(dir, 'rec'));
     const cfg = InputSchema.parse({ id: 'pt', name: 'Pi Tuner 1', kind: 'push', mount: '/fm1', source_password: 'sekret' });
     const input = new LogInput(cfg, { recordRoot: path.join(dir, 'rec'), workDir: path.join(dir, 'work'), log: quietLogger(), faults: new FaultLog(dir) });
     input.start();

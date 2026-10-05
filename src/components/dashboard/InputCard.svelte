@@ -55,7 +55,9 @@
   </div>
 
   <div class="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
-    {#if input.recording}
+    {#if input.record_error}
+      <Circle class="size-2.5 fill-bad text-bad" /> <span class="text-bad" title={input.record_error}>not recording: recordings folder unavailable</span>
+    {:else if input.recording}
       <Circle class="size-2.5 fill-bad text-bad" /> recording · {input.chunk_minutes}-minute files
     {:else}
       not recording
