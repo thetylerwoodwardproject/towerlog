@@ -4,7 +4,7 @@
 // as <file>.analysis.json (pruneInput and purgeForSpace delete them with the audio).
 import fs from 'node:fs';
 import { spawn } from 'node:child_process';
-import type { Analysis } from '../../lib/types.ts';
+import type { Analysis, Loudness } from '../../lib/types.ts';
 
 export const ANALYSIS_SUFFIX = '.analysis.json';
 export const ANALYSIS_RATE = 48000;
@@ -106,7 +106,7 @@ export class Analyzer {
     this.frames.push(row);
   }
 
-  result(): Analysis {
+  result(): Omit<Analysis, "loudness"> {
     const n = this.frames.length;
     const blocks = this.blockMin.length;
     const wave = { min: [] as number[], max: [] as number[] };
@@ -129,7 +129,7 @@ export class Analyzer {
       }
     }
     return {
-      version: 2,
+      version: 3,
       size: 0,
       mtime: 0,
       duration: this.samples / ANALYSIS_RATE,
@@ -161,7 +161,69 @@ export function analyzeFile(file: string, bin = 'ffmpeg'): Promise<Analysis> {
     p.on('close', (code) => {
       clearTimeout(timer);
       if (a.samples < FFT * 2) reject(new Error(err.trim().split('\n').pop() || (code ? `ffmpeg exited ${code}` : 'no audio in this file')));
-      else resolve(a.result());
+      else loudness(file, bin).then((l) => resolve({ ...a.result(), loudness: l }));
+    });
+  });
+}
+
+const LUFS_FLOOR = -70;
+const LUFS_POINTS = 900;
+
+/**
+ * BS.1770 / EBU R128 loudness via ffmpeg's ebur128 filter, which reports momentary (400 ms) and
+ * short-term (3 s) loudness every 100 ms and the running integrated value. Null if it fails:
+ * the rest of the analysis does not depend on it.
+ */
+export function loudness(file: string, bin = 'ffmpeg'): Promise<Loudness | null> {
+  return new Promise((resolve) => {
+    const p = spawn(bin, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-i', file, '-vn', '-map', '0:a:0', '-af', 'ebur128=metadata=1:peak=true,ametadata=mode=print:file=-', '-f', 'null', '-'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    const timer = setTimeout(() => p.kill('SIGKILL'), TIMEOUT_MS);
+    let buf = '';
+    let t = 0;
+    const sec = { s: [] as number[], m: [] as number[], i: [] as number[] };
+    let cur: Record<string, number> = {};
+    let maxM = LUFS_FLOOR, maxS = LUFS_FLOOR, tp = 0, lra = 0, integ = LUFS_FLOOR, next = 1;
+    const clamp = (v: number) => (Number.isFinite(v) ? Math.max(LUFS_FLOOR, v) : LUFS_FLOOR);
+    const flush = () => {
+      if (cur.M === undefined) return;
+      const m = clamp(cur.M), s = clamp(cur.S), i = clamp(cur.I);
+      maxM = Math.max(maxM, m);
+      // Short-term loudness needs 3 s of audio before it means anything.
+      if (t >= 3) maxS = Math.max(maxS, s);
+      tp = Math.max(tp, cur.true_peak ?? 0);
+      lra = cur.LRA ?? lra;
+      integ = i;
+      if (t >= next) { sec.s.push(t >= 3 ? s : LUFS_FLOOR); sec.m.push(m); sec.i.push(i); next = Math.floor(t) + 1; }
+    };
+    p.stdout.on('data', (d: Buffer) => {
+      buf += d.toString();
+      const lines = buf.split('\n');
+      buf = lines.pop() ?? '';
+      for (const line of lines) {
+        const fr = /^frame:\d+\s+pts:\d+\s+pts_time:([\d.]+)/.exec(line);
+        if (fr) { flush(); cur = {}; t = Number(fr[1]); continue; }
+        const kv = /^lavfi\.r128\.(M|S|I|LRA|true_peak)=(-?[\d.]+|-?inf|nan)/.exec(line);
+        if (kv) cur[kv[1]] = Number(kv[2]);
+      }
+    });
+    p.on('error', () => { clearTimeout(timer); resolve(null); });
+    p.on('close', () => {
+      clearTimeout(timer);
+      flush();
+      if (sec.s.length < 2) return resolve(null);
+      const stride = Math.ceil(sec.s.length / LUFS_POINTS);
+      const pick = (a: number[]) => a.filter((_, k) => k % stride === 0).map((v) => +v.toFixed(1));
+      resolve({
+        step: stride,
+        short: pick(sec.s),
+        momentary: pick(sec.m),
+        integrated_run: pick(sec.i),
+        integrated: +integ.toFixed(1),
+        lra: +lra.toFixed(1),
+        max_short: +maxS.toFixed(1),
+        max_momentary: +maxM.toFixed(1),
+        true_peak: tp > 0 ? +(20 * Math.log10(tp)).toFixed(1) : LUFS_FLOOR,
+      });
     });
   });
 }
@@ -171,7 +233,7 @@ export function readCached(file: string): Analysis | null {
   try {
     const st = fs.statSync(file);
     const c = JSON.parse(fs.readFileSync(file + ANALYSIS_SUFFIX, 'utf8')) as Analysis;
-    return c.version === 2 && c.size === st.size && c.mtime === st.mtimeMs ? c : null;
+    return c.version === 3 && c.size === st.size && c.mtime === st.mtimeMs ? c : null;
   } catch { return null; }
 }
 

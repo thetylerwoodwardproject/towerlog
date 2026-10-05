@@ -1,5 +1,5 @@
 <script lang="ts">
-  // A recording at a glance: waveform and spectrogram.
+  // A recording at a glance: waveform, loudness (LUFS) and spectrogram.
   // The server decodes the file once and caches the numbers; drawing is here.
   import { onMount } from 'svelte';
   import { fitCanvas } from '$lib/canvas';
@@ -14,6 +14,7 @@
   let error = $state('');
   let wave = $state<HTMLCanvasElement>();
   let gram = $state<HTMLCanvasElement>();
+  let loud = $state<HTMLCanvasElement>();
   let seq = 0;
 
   const css = (n: string, d: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || d;
@@ -110,11 +111,53 @@
     for (let t = 0; t <= a.duration; t += step) { ctx.textAlign = t === 0 ? 'left' : 'center'; ctx.fillText(mmss(t), L + (t / a.duration) * pw, h); }
   }
 
+  const LU_TOP = -10;
+  const LU_BOTTOM = -50;
+  const lufs = (v: number | undefined) => (v === undefined || v <= -69.9 ? '−∞' : v.toFixed(1));
+
+  function drawLoud(a: Analysis) {
+    const l = a.loudness;
+    if (!loud || !l) return;
+    const { ctx, w, h } = fitCanvas(loud);
+    const border = css('--border', '#27272a'), mfg = css('--muted-foreground', '#71717a');
+    const fg = css('--foreground', '#fafafa'), ok = css('--ok', '#4ade80');
+    ctx.clearRect(0, 0, w, h);
+    const L = 34, R = 8, T = 6, B = 16, pw = w - L - R, ph = h - T - B;
+    const Y = (v: number) => T + ((LU_TOP - Math.max(LU_BOTTOM, Math.min(LU_TOP, v))) / (LU_TOP - LU_BOTTOM)) * ph;
+    const X = (i: number) => L + ((i * l.step + 0.5) / a.duration) * pw;
+    ctx.font = '10px ui-monospace, monospace'; ctx.lineWidth = 1;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (let v = LU_TOP; v >= LU_BOTTOM; v -= 10) {
+      ctx.strokeStyle = border; ctx.beginPath(); ctx.moveTo(L, Math.round(Y(v)) + 0.5); ctx.lineTo(w - R, Math.round(Y(v)) + 0.5); ctx.stroke();
+      ctx.fillStyle = mfg; ctx.fillText(String(v), L - 4, Y(v));
+    }
+    // Targets: EBU R128 -23 LUFS (+/-1 LU) and ATSC A/85 -24 LKFS (+/-2 dB).
+    ctx.globalAlpha = 0.12; ctx.fillStyle = ok; ctx.fillRect(L, Y(-22), pw, Y(-24) - Y(-22)); ctx.globalAlpha = 1;
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = ok;
+    for (const t of [-23, -24]) { ctx.beginPath(); ctx.moveTo(L, Math.round(Y(t)) + 0.5); ctx.lineTo(w - R, Math.round(Y(t)) + 0.5); ctx.stroke(); }
+    ctx.setLineDash([]);
+    ctx.fillStyle = ok; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+    ctx.fillText('R128 −23', w - R - 2, Y(-23) - 1);
+    ctx.textBaseline = 'top'; ctx.fillText('A/85 −24', w - R - 2, Y(-24) + 1);
+    const line = (vals: number[], color: string, width: number) => {
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+      let pen = false;
+      vals.forEach((v, i) => { if (v <= -69.9) { pen = false; return; } if (pen) ctx.lineTo(X(i), Y(v)); else { ctx.moveTo(X(i), Y(v)); pen = true; } });
+      ctx.stroke();
+    };
+    line(l.momentary, mfg, 1);
+    line(l.short, fg, 1.5);
+    line(l.integrated_run, '#60a5fa', 1.5);
+    ctx.fillStyle = mfg; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    const step = a.duration > 600 ? 180 : a.duration > 120 ? 60 : 15;
+    for (let t = 0; t <= a.duration; t += step) { ctx.textAlign = t === 0 ? 'left' : 'center'; ctx.fillText(mmss(t), L + (t / a.duration) * pw, h); }
+  }
+
   function draw() {
     if (!data) return;
-    drawWave(data); drawGram(data);
+    drawWave(data); drawLoud(data); drawGram(data);
   }
-  $effect(() => { if (data && wave && gram) draw(); });
+  $effect(() => { if (data && wave && gram && (loud || !data.loudness)) draw(); });
   onMount(() => {
     const onResize = () => draw();
     addEventListener('resize', onResize);
@@ -142,6 +185,19 @@
       <figcaption class="mb-2 text-xs font-medium text-muted-foreground">Waveform</figcaption>
       <canvas bind:this={wave} class="h-32 w-full" aria-label="Waveform of the recording"></canvas>
     </figure>
+    {#if data?.loudness}
+      {@const l = data.loudness}
+      <figure class="rounded-lg border p-3">
+        <figcaption class="mb-2 text-xs font-medium text-muted-foreground">Loudness, LUFS</figcaption>
+        <dl class="mb-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-5">
+          {#each [['Integrated (long-term)', lufs(l.integrated), 'LUFS'], ['Max short-term (3 s)', lufs(l.max_short), 'LUFS'], ['Max momentary (400 ms)', lufs(l.max_momentary), 'LUFS'], ['Loudness range', l.lra.toFixed(1), 'LU'], ['True peak', lufs(l.true_peak), 'dBTP']] as [k, v, u] (k)}
+            <div><dt class="text-[11px] text-muted-foreground">{k}</dt><dd class="font-mono text-lg tabular-nums">{v} <span class="text-xs text-muted-foreground">{u}</span></dd></div>
+          {/each}
+        </dl>
+        <canvas bind:this={loud} class="h-48 w-full" aria-label="Loudness over the recording"></canvas>
+        <p class="mt-2 flex flex-wrap gap-x-4 text-[11px] text-muted-foreground"><span class="text-foreground">━ short-term</span><span style="color:#60a5fa">━ integrated so far</span><span>━ momentary</span><span class="text-ok">╌ targets −23 (R128) / −24 (A/85)</span></p>
+      </figure>
+    {/if}
     <figure class="rounded-lg border p-3">
       <figcaption class="mb-2 text-xs font-medium text-muted-foreground">Spectrogram</figcaption>
       <canvas bind:this={gram} class="h-56 w-full" aria-label="Spectrogram: frequency over time"></canvas>

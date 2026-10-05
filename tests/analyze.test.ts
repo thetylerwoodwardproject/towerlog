@@ -28,6 +28,12 @@ describe('recording analysis', () => {
     expect(col[top]).toBeGreaterThan(180);
     expect(col[bands - 1]).toBeLessThan(20);
     expect(bytes.length).toBe(cols * bands);
+    // The test tone is steady, so short-term and integrated loudness agree and the series follow the clock.
+    const l = a.loudness!;
+    expect(l.short.length).toBeGreaterThanOrEqual(4);
+    expect(l.integrated).toBeGreaterThan(-40);
+    expect(Math.abs(l.integrated - l.max_short)).toBeLessThan(1);
+    expect(l.true_peak).toBeLessThan(0);
   });
 
   it('rejects a file with no audio', async () => {
