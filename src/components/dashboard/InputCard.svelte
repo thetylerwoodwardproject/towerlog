@@ -16,6 +16,7 @@
   const playing = $derived(player.current === url);
   const tone = $derived(inputTone(input));
   const live = $derived(input.status === 'live');
+  const silent = $derived(input.faults.includes('silence'));
 </script>
 
 <div class={cn('flex flex-col gap-3 rounded-lg border p-4', tone === 'bad' && 'border-bad-border bg-bad/5', tone === 'warn' && 'border-warn/50', selected && 'ring-1 ring-ring')}>
@@ -25,7 +26,7 @@
     <span class="ml-auto font-mono text-[11px] text-faint">{KIND_TEXT[input.kind] ?? input.kind}</span>
     <button aria-label={playing ? 'Stop listening' : `Listen to ${input.name}`} disabled={!live && !playing}
       onclick={() => player.toggle(url, input.name, input.id)}
-      class="inline-flex size-8 flex-none items-center justify-center rounded-full border disabled:opacity-40 {playing ? 'border-foreground bg-foreground text-background' : 'hover:bg-secondary'}">
+      class="inline-flex size-8 flex-none items-center justify-center rounded-full border disabled:opacity-40 {playing && silent ? 'silence-flash ' : ''}{playing ? 'border-foreground bg-foreground text-background' : 'hover:bg-secondary'}">
       {#if playing}<Square class="size-3 fill-current" />{:else}<Play class="size-3 fill-current" />{/if}
     </button>
   </div>
