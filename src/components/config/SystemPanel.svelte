@@ -54,7 +54,10 @@
     const ok = await attempt('Password', () => put('/api/password', { current: pwCur, password: pw1 }), 'Password changed — other sessions are signed out');
     if (ok) { pwCur = pw1 = pw2 = ''; }
   }
-  const TOOL_HELP: Record<string, string> = { ffmpeg: 'reads every feed, records, plays' };
+  const TOOL_HELP: Record<string, string> = {
+    ffmpeg: 'reads every feed, records, plays', 'multimon-ng': 'EAS / SAME decoding',
+    nmcli: 'network settings (optional)', hostnamectl: 'host name (optional)', timedatectl: 'time zone / NTP (optional)', chronyc: 'clock status (optional)',
+  };
   const about = $derived(sys ? [
     ['Version', `Towerlog ${sys.version}`], ['Host', `${sys.hostname} · ${sys.kernel} · ${sys.arch}`], ['Service uptime', fmtUptime(sys.uptime_s)],
     ['Host uptime', fmtUptime(sys.host_uptime_s)], ['Load', sys.load.join(' / ')], ['Memory', `${sys.mem.free_mb} MB free of ${sys.mem.total_mb} MB`],

@@ -93,7 +93,7 @@ export class Engine {
     this.loadState();
     this.faultLog = new FaultLog(paths.data);
     this.easLog = new EasLog(paths.data);
-    this.toolPaths = { ffmpeg: which('ffmpeg'), multimon: which('multimon-ng') };
+    this.toolPaths = { ffmpeg: which('ffmpeg'), 'multimon-ng': which('multimon-ng') };
     this.applyServices(this.store.config);
   }
 
@@ -193,7 +193,7 @@ export class Engine {
         faults: this.faultLog,
         bin: this.toolPaths.ffmpeg ?? 'ffmpeg',
         onFault: (rec) => this.onInputFault(rec),
-        multimonBin: this.toolPaths.multimon,
+        multimonBin: this.toolPaths['multimon-ng'],
         onEasTone: (i, active) => this.onEasTone(i, active),
         onSame: (i, msg) => this.onSame(i, msg),
       });
@@ -389,7 +389,7 @@ export class Engine {
       time: Date.now(),
       inputs,
       disk: this.diskInfo(),
-      eas: { active: inputs.some((i) => i.eas_active), last: this.easLast.text, last_at: this.easLast.at, decoder: !!this.toolPaths.multimon },
+      eas: { active: inputs.some((i) => i.eas_active), last: this.easLast.text, last_at: this.easLast.at, decoder: !!this.toolPaths['multimon-ng'] },
       warnings: this.warnings(),
       services: {
         source: { enabled: c.source.enabled, port: c.source.port, push_inputs: c.inputs.filter((i) => i.kind === 'push' && i.enabled).length },
@@ -406,7 +406,7 @@ export class Engine {
   warnings(): string[] {
     const w: string[] = [];
     if (!this.toolPaths.ffmpeg) w.push('ffmpeg is not installed: no input can record or play.');
-    if (!this.toolPaths.multimon && this.config.inputs.some((i) => i.enabled && i.detect_eas)) w.push('multimon-ng is not installed: EAS attention tones are detected but SAME messages (event, areas, sender) are not decoded.');
+    if (!this.toolPaths['multimon-ng'] && this.config.inputs.some((i) => i.enabled && i.detect_eas)) w.push('multimon-ng is not installed: EAS attention tones are detected but SAME messages (event, areas, sender) are not decoded.');
     const c = this.clockCache.status;
     if (c?.available && !c.synchronized) w.push('The clock is not synchronised (chrony): recording times and fault times may be wrong. See Configuration → Clock.');
     else if (c?.available && c.offset_ms !== null && Math.abs(c.offset_ms) > 500) w.push(`The clock is ${Math.round(c.offset_ms)} ms off its time source; recording times may be wrong. See Configuration → Clock.`);
@@ -637,7 +637,8 @@ export class Engine {
       node: process.version,
       kernel,
       arch: process.arch,
-      tools: { ...this.toolPaths },
+      // Network and clock tools are optional (those pages are view-only without them).
+      tools: { ...this.toolPaths, nmcli: which('nmcli'), hostnamectl: which('hostnamectl'), timedatectl: which('timedatectl'), chronyc: which('chronyc') },
       paths: { ...this.paths, recordings: this.recordingsRoot() },
       disk: this.diskInfo(),
       config_problems: this.store.problems,
