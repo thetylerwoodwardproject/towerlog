@@ -28,8 +28,8 @@ export const INPUT_KINDS = ['http', 'rtp', 'livewire', 'push'] as const;
  * One logged audio feed. `http` pulls an Icecast/Shoutcast/HTTP stream (Barix,
  * Inovonics, anything with a URL), `rtp` listens for RTP on a unicast or
  * multicast address, `livewire` listens on the multicast group of a Livewire
- * channel number, `push` accepts an Icecast source client (for example a
- * Pi-Tuner) on `mount`.
+ * channel number, `push` accepts an Icecast source client (for example an
+ * encoder or ffmpeg) on `mount`.
  */
 export const InputSchema = z.object({
   id: z.string().regex(/^[A-Za-z0-9._-]+$/),
@@ -140,7 +140,7 @@ export const WebSchema = z.object({
   session_hours: int(168, 1, 8760),
 });
 
-/** Where Icecast source clients (Pi-Tuners) connect to push streams to push-kind inputs. */
+/** Where Icecast source clients connect to push streams to push-kind inputs. */
 export const SourceSchema = z.object({
   enabled: bool(true),
   port: int(8000, 1, 65535),

@@ -8,7 +8,7 @@ export interface OutputMeter {
 }
 
 export interface ServiceStatus {
-  /** Icecast source endpoint that Pi-Tuners (and other source clients) push to. */
+  /** Icecast source endpoint that source clients (encoders, ffmpeg) push to. */
   source: { enabled: boolean; port: number; push_inputs: number };
   zabbix: { enabled: boolean; server: string; last_ok: number | null; last_error: string; last_error_at: number | null };
   smtp: { enabled: boolean; problem: string; last_sent: number | null; last_error: string; last_error_at: number | null };

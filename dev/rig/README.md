@@ -9,7 +9,7 @@
 | Hot Mic | clipped at full scale | clipping fault |
 | Mono Feed / Phase Feed | identical / inverted channels | mono and phase faults |
 | Dead Barix | refused connection | feed lost |
-| Pi-Tuner KUTX | an ffmpeg Icecast push to the source port | the Pi-Tuner destination path |
+| Push KUTX | an ffmpeg Icecast push to the source port | the Icecast source (push) path |
 
 Web UI: http://127.0.0.1:18091, password `testpass123`. Data, recordings and logs are in `dev/rig/build/` (git-ignored).
 Edit `build/cfg/config.json` (copied from `config.json` on first start) to change the rig; delete `build/` to reset it.

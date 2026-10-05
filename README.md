@@ -18,8 +18,7 @@
 </p>
 
 > [!NOTE]
-> Towerlog is forked from [Pi-Tuner 2](../pituner) and keeps its web UI, alerting and
-> test approach. It is **new and has only been tried against simulated feeds** (ffmpeg-generated
+> Towerlog is **new and has only been tried against simulated feeds** (ffmpeg-generated
 > Icecast, RTP and Livewire-format streams). Nothing has been verified yet against real Barix,
 > Inovonics or Livewire hardware.
 
@@ -33,7 +32,7 @@
 | 📟 **Email, SNMP and Zabbix** | SMTP alerts, an SNMP agent (v2c / v3) with traps and its own MIB, and a Zabbix trapper with a generated template |
 | 📊 **Live UI** | A card per input with VU and peak meters, fault chips, a listen-in player, recordings by day with playback and download, and the fault history |
 | 🧹 **Retention** | Keep-days per input, plus a disk watermark that deletes the oldest recordings first |
-| 🔁 **Pi-Tuner destination** | Pi-Tuner's remote Icecast setting can point at Towerlog: each Pi-Tuner stream becomes a logged input |
+| 🔁 **Icecast destination** | Any Icecast source client (ffmpeg, BUTT, Liquidsoap, an encoder) can push to Towerlog: each stream becomes a logged input |
 
 ## Install
 
@@ -66,10 +65,10 @@ The container runs as the `node` user (uid 1000): the `./towerlog/*` folders mus
 
 Recordings are laid out as `<recordings>/<Input_name>/YYYY/MM/DD/<Input_name>_YYMMDD_HHMM.<ext>`.
 
-### Pi-Tuner as a source
+### Pushing a stream to Towerlog
 
 1. Add an **Icecast push** input in Towerlog with a mount (say `/kutx`) and a password.
-2. In Pi-Tuner → Configuration → Icecast set the host to the Towerlog server, the port to Towerlog's source port, the source password to the one above, and give the station the same mount.
+2. In the source client set the host to the Towerlog server, the port to Towerlog's source port, the source password to the one above and the mount to the same mount (for example `icecast://source:PASSWORD@host:8000/kutx` in ffmpeg).
 
 ## Faults and alerts
 
@@ -142,4 +141,4 @@ loopback interface has no multicast flag: set `TL_MC_ADDR` to another interface'
 
 ## Made by
 
-Forked from Pi-Tuner by [The Tyler Woodward Project](https://github.com/thetylerwoodwardproject). MIT licence.
+By [The Tyler Woodward Project](https://github.com/thetylerwoodwardproject). MIT licence.

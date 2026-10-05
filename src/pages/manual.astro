@@ -9,7 +9,7 @@ const toc = [
   ['quick-start', 'Quick start'],
   ['dashboard', 'The dashboard'],
   ['inputs', 'Inputs'],
-  ['push', 'Pi-Tuner and other source clients'],
+  ['push', 'Pushing a stream to Towerlog'],
   ['recording', 'Recording'],
   ['faults', 'Faults and alert timing'],
   ['zabbix', 'Zabbix'],
@@ -29,7 +29,7 @@ const toc = [
         <div class="mb-6 md:hidden"><ManualSearch client:load /></div>
       <h1>Towerlog manual</h1>
       <p class="lead">Towerlog is a broadcast audio logger. It takes in IP audio feeds (Barix and Inovonics units, Icecast and HTTP streams,
-        RTP unicast and multicast, Livewire, and Pi-Tuner streams pushed to it), records each one in 15, 30 or 60 minute files that always
+        RTP unicast and multicast, Livewire, and Icecast streams pushed to it), records each one in 15, 30 or 60 minute files that always
         start on the clock, shows levels, lets you listen in, and tells you by email, SNMP and Zabbix when a feed fails.</p>
 
       <section id="overview" data-manual-section>
@@ -43,7 +43,7 @@ const toc = [
           <tr><td>HTTP / Icecast / Shoutcast</td><td>Towerlog pulls a stream URL. Covers Barix units in server mode, Inovonics 541 / 551 / 525 / 677 streams and any Icecast mount.</td><td>Copied: <code>.mp3</code>, <code>.aac</code> or <code>.mka</code> by the stream codec you choose</td></tr>
           <tr><td>RTP</td><td>Towerlog listens on a unicast address or joins a multicast group. Linear 16/24-bit, G.711 µ-law/A-law, or MP3.</td><td>FLAC for linear and G.711, MP3 copied for MP3</td></tr>
           <tr><td>Livewire</td><td>Towerlog joins the multicast group of a Livewire channel number (<code>239.192.x.y</code>, 24-bit, 48 kHz stereo).</td><td>FLAC</td></tr>
-          <tr><td>Icecast push</td><td>A source client such as a Pi-Tuner connects to Towerlog's source port and pushes its stream.</td><td>Copied: <code>.mp3</code> or <code>.aac</code></td></tr>
+          <tr><td>Icecast push</td><td>A source client such as an encoder connects to Towerlog's source port and pushes its stream.</td><td>Copied: <code>.mp3</code> or <code>.aac</code></td></tr>
         </tbody>
       </table>
       <p>Feeds that Towerlog cannot read are simply not offered. If an input stops, Towerlog reconnects on its own, waiting 2 s and
@@ -85,23 +85,23 @@ const toc = [
           <tr><td>Stream codec</td><td>HTTP and push. What the feed carries, so the recording gets the right file type. Audio is never re-encoded.</td></tr>
           <tr><td>Address, port, payload</td><td>RTP. Leave the address blank for any unicast sender, or give a multicast group to join. Linear payloads also need the sample rate, the channel count and the payload type (96 is usual; the sender's setting must match, or no audio arrives).</td></tr>
           <tr><td>Livewire channel</td><td>1 to 32767. Channel N joins <code>239.192.(N÷256).(N mod 256)</code>.</td></tr>
-          <tr><td>Mount, source password</td><td>Push only. See <a href="#push">Pi-Tuner and other source clients</a>.</td></tr>
+          <tr><td>Mount, source password</td><td>Push only. See <a href="#push">Pushing a stream to Towerlog</a>.</td></tr>
         </tbody>
       </table>
       <p>Multicast needs the Towerlog host to be on the same network as the feed and to allow IGMP. In Docker use host networking.</p>
       </section>
 
       <section id="push" data-manual-section>
-      <h2>5 · Pi-Tuner and other source clients</h2>
-      <p>Towerlog is a destination for Pi-Tuner. It speaks the Icecast source protocol (<code>SOURCE</code> and <code>PUT</code>, HTTP Basic login)
+      <h2>5 · Pushing a stream to Towerlog</h2>
+      <p>Towerlog is an Icecast destination. It speaks the Icecast source protocol (<code>SOURCE</code> and <code>PUT</code>, HTTP Basic login)
         on its <b>source port</b> (default 8000, <code>source.port</code> in the config file).</p>
       <ol class="steps">
         <li>In Towerlog add an input of type <b>Icecast push</b>. Give it a mount (for example <code>/kutx</code>) and a password. The editor shows the host and port to use.</li>
-        <li>In Pi-Tuner, open Configuration → Icecast and set the host to this Towerlog server, the port to Towerlog's source port, and the source password to the one you just set. Give the station the same mount.</li>
-        <li>When Pi-Tuner connects the input goes <b>live</b> and starts recording. If the connection drops, the input shows <i>down</i> and a <i>Feed lost</i> fault is raised after the link delay.</li>
+        <li>In the source client set the host to this Towerlog server, the port to Towerlog's source port, the password to the one you just set and the mount to the same mount (ffmpeg: <code>icecast://source:PASSWORD@host:8000/kutx</code>).</li>
+        <li>When the source connects the input goes <b>live</b> and starts recording. If the connection drops, the input shows <i>down</i> and a <i>Feed lost</i> fault is raised after the link delay.</li>
       </ol>
-      <p>Each Towerlog push input accepts one source at a time; a new connection on the same mount replaces the old one, so a Pi-Tuner that reconnects after a network
-        glitch is never locked out. Pi-Tuner's now-playing updates are accepted and ignored. Other encoders (BUTT, Liquidsoap, ffmpeg) work the same way.</p>
+      <p>Each Towerlog push input accepts one source at a time; a new connection on the same mount replaces the old one, so an encoder that reconnects after a network
+        glitch is never locked out. Now-playing (metadata) updates are accepted and ignored. Other encoders (BUTT, Liquidsoap, ffmpeg) work the same way.</p>
       </section>
 
       <section id="recording" data-manual-section>

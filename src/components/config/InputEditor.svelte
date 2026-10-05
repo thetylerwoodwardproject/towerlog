@@ -72,7 +72,7 @@
 
   <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-x-5 gap-y-[18px] p-5 max-sm:p-4">
     <Field label="Source type">
-      <FormSelect bind:value={f.kind} options={[['http', 'HTTP / Icecast / Shoutcast (Barix, Inovonics…)'], ['rtp', 'RTP unicast or multicast'], ['livewire', 'Livewire channel'], ['push', 'Icecast push (Pi-Tuner → Towerlog)']]} />
+      <FormSelect bind:value={f.kind} options={[['http', 'HTTP / Icecast / Shoutcast (Barix, Inovonics…)'], ['rtp', 'RTP unicast or multicast'], ['livewire', 'Livewire channel'], ['push', 'Icecast push (encoder → Towerlog)']]} />
     </Field>
     {#if f.kind === 'http'}
       <Field label="Stream URL" hint="e.g. http://10.1.2.3:8000/stream — an Inovonics or Barix unit's stream"><Input class={IN} bind:value={f.url} placeholder="http://host:port/mount" /></Field>
@@ -93,11 +93,11 @@
     {:else if f.kind === 'livewire'}
       <Field label="Livewire channel" hint="Joins multicast 239.192.x.y for this channel number (L24, 48 kHz)"><Input class={IN} type="number" min="1" max="32767" bind:value={f.livewire_channel} /></Field>
     {:else}
-      <Field label="Mount" hint="Pi-Tuner: Icecast mount for the station"><Input class={IN} bind:value={f.mount} placeholder="/fm1" /></Field>
+      <Field label="Mount" hint="The mount the source client connects to"><Input class={IN} bind:value={f.mount} placeholder="/fm1" /></Field>
       <Field label="Source password"><Input class={IN} type="password" bind:value={f.source_password} autocomplete="new-password" /></Field>
       <Field label="Stream codec"><FormSelect bind:value={f.stream_codec} options={[['mp3', 'MP3'], ['aac', 'AAC (ADTS)']]} /></Field>
       <p class="col-span-full text-xs text-muted-foreground">
-        In Pi-Tuner → Icecast, set host <code class="font-mono">{host}</code>, port <code class="font-mono">{sourcePort}</code> and this password, and give the station the mount <code class="font-mono">{f.mount || '/fm1'}</code>.
+        In the source client set host <code class="font-mono">{host}</code>, port <code class="font-mono">{sourcePort}</code> and this password, and mount <code class="font-mono">{f.mount || '/fm1'}</code>.
       </p>
     {/if}
   </div>

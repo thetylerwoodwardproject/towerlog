@@ -115,4 +115,4 @@ if systemctl is-active --quiet "$SERVICE"; then ok "towerlog is running"; else w
 PORT=$(sudo -u towerlog env TOWERLOG_CONFIG="$CONF_DIR/config.json" "$NODE_BIN" -e "try{console.log(JSON.parse(require('fs').readFileSync('$CONF_DIR/config.json')).web.port)}catch{console.log(8090)}" 2>/dev/null || echo 8090)
 echo
 echo "${B}Open http://$(hostname -I 2>/dev/null | awk '{print $1}'):${PORT:-8090}${N} and add your inputs under Configuration -> Inputs."
-echo "Pi-Tuners push to this server's source port (default 8000): see Configuration -> Inputs -> Icecast push."
+echo "Encoders push to this server's source port (default 8000): see Configuration -> Inputs -> Icecast push."

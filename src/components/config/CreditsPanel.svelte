@@ -10,7 +10,7 @@
     ['Streaming', [
       ['FFmpeg', 'FFmpeg developers', 'LGPL-2.1+ / GPL', 'https://ffmpeg.org', 'Reading every feed, recording, MP3 monitoring'],
       ['LAME', 'The LAME project', 'LGPL-2.0', 'https://lame.sourceforge.io', 'MP3 encoder used by FFmpeg for the listen-in player'],
-      ['Icecast', 'Xiph.Org Foundation', 'GPL-2.0', 'https://icecast.org', 'The source protocol Pi-Tuner and encoders use to push streams to Towerlog'],
+      ['Icecast', 'Xiph.Org Foundation', 'GPL-2.0', 'https://icecast.org', 'The source protocol encoders use to push streams to Towerlog'],
     ]],
     ['Web application', [
       ['Node.js', 'OpenJS Foundation', 'MIT', 'https://nodejs.org', 'Runtime for the engine and web server'],
@@ -30,7 +30,6 @@
     ]],
     ['Monitoring & heritage', [
       ['Zabbix', 'Zabbix SIA', 'AGPL-3.0', 'https://www.zabbix.com', 'Monitoring target (trapper protocol, template format)'],
-      ['Pi-Tuner 1.x', 'The Tyler Woodward Project', 'MIT', 'https://github.com/thetylerwoodwardproject/pi-tuner', 'The SDR streaming server Towerlog was forked from'],
     ]],
   ];
 </script>

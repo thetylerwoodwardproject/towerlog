@@ -1,4 +1,4 @@
-// Icecast source endpoint: lets a Pi-Tuner (or any Icecast source client such as
+// Icecast source endpoint: lets any Icecast source client (such as
 // ffmpeg, BUTT, Liquidsoap) push a stream to Towerlog, which logs it like any
 // other input. Raw TCP on purpose: a source request has no Content-Length, so
 // Node's HTTP parser would treat the audio that follows as garbage.
@@ -70,7 +70,7 @@ export function createSourceServer(hooks: SourceHooks): net.Server {
         return;
       }
       if (isMeta) {
-        // Now-playing updates from Pi-Tuner: accepted, nothing to do with them yet.
+        // Now-playing (metadata) updates from the source: accepted, nothing to do with them yet.
         reply('HTTP/1.0 200 OK', '<?xml version="1.0"?><iceresponse><message>Metadata update successful</message><return>1</return></iceresponse>');
         return;
       }

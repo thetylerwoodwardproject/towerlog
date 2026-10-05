@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Test rig: Towerlog on http://127.0.0.1:18091 (RIG_PORT=8080 to change the port, RIG_HOST=0.0.0.0 to listen on every interface) (password testpass123) with fake feeds,
-# and an ffmpeg Icecast push standing in for a Pi-Tuner. State is in dev/rig/build/.
+# and an ffmpeg Icecast push standing in for an encoder. State is in dev/rig/build/.
 #
 #   dev/rig/ctl.sh start     build if needed, start the feeds, Towerlog and the push
 #   dev/rig/ctl.sh stop      stop everything
