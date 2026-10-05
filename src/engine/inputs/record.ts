@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { InputConfig } from '../config.ts';
 import { dayDir, recName } from '../recorder.ts';
+import { ANALYSIS_SUFFIX } from './analyze.ts';
 import { METER_CHANNELS, METER_RATE, type Source } from './args.ts';
 
 /** strftime pattern for a chunk: <root>/<NAME>/YYYY/MM/DD/<NAME>_YYMMDD_HHMM.<ext> */
@@ -36,6 +37,12 @@ export function ffmpegArgs(cfg: InputConfig, src: Source, recordRoot: string | n
  */
 export function ensureDayDirs(root: string, name: string, now: number): void {
   for (const when of [now, now + 86400]) fs.mkdirSync(dayDir(root, name, when), { recursive: true });
+}
+
+/** Delete a recording and its cached analysis. */
+function unlinkChunk(p: string) {
+  fs.unlinkSync(p);
+  try { fs.unlinkSync(p + ANALYSIS_SUFFIX); } catch { /* none */ }
 }
 
 export const AUDIO_EXT = /\.(mp3|aac|flac|mka)$/;
@@ -77,7 +84,7 @@ export function pruneInput(root: string, name: string, keepDays: number, now = D
   let removed = 0;
   for (const c of listChunks(base)) {
     if (c.mtime >= now - keepDays * 86400) break;
-    try { fs.unlinkSync(c.path); removed++; } catch { /* ignore */ }
+    try { unlinkChunk(c.path); removed++; } catch { /* ignore */ }
   }
   if (removed) removeEmptyDirs(base);
   return removed;
@@ -100,7 +107,7 @@ export function purgeForSpace(
   for (const c of listChunks(root)) {
     if (free(root) >= minFreeBytes) break;
     if (c.mtime > now - protectSecs) break;
-    try { fs.unlinkSync(c.path); freed += c.size; } catch { continue; }
+    try { unlinkChunk(c.path); freed += c.size; } catch { continue; }
   }
   if (freed) removeEmptyDirs(root);
   return freed;

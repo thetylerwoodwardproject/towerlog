@@ -71,3 +71,38 @@ export interface FaultRecord {
   /** Cleared records carry how long the fault lasted, in seconds. */
   duration?: number;
 }
+
+/** Waveform, spectrum, spectrogram and loudness of one recording (see engine/inputs/analyze.ts). */
+export interface Analysis {
+  version: 5;
+  /** Size and mtime of the file it was made from; a cached copy is stale when they differ. */
+  size: number;
+  mtime: number;
+  duration: number;
+  /** Per-pixel min/max sample, -1..1. */
+  wave: { min: number[]; max: number[] };
+  /** Whole-recording mean and peak level per band (same bands as the spectrogram), dB per FFT bin, 0 = full-scale tone. */
+  spectrum: { avg_db: number[]; peak_db: number[] };
+  /** cols x bands bytes, base64, column = time, band = frequency; `freqs` = band centre in Hz; byte 0 = floor_db, 255 = 0 dB (a full-scale tone, per FFT bin). */
+  spectrogram: { freqs: number[]; cols: number; bands: number; floor_db: number; data: string };
+  /** Null when the loudness pass failed. */
+  loudness: Loudness | null;
+}
+
+/** EBU R128 / BS.1770 loudness over a recording. Series have one point per `step` seconds (0.1 s for short files); -70 = silence / not yet valid. */
+export interface Loudness {
+  step: number;
+  /** Short-term (3 s window), LUFS. */
+  short: number[];
+  /** Momentary (400 ms window), LUFS. */
+  momentary: number[];
+  /** Integrated loudness so far, LUFS. */
+  integrated_run: number[];
+  integrated: number;
+  /** Loudness range, LU. */
+  lra: number;
+  max_short: number;
+  max_momentary: number;
+  /** dBTP. */
+  true_peak: number;
+}
