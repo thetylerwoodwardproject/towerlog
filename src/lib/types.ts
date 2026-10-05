@@ -72,15 +72,17 @@ export interface FaultRecord {
   duration?: number;
 }
 
-/** Waveform and spectrogram of one recording (see engine/inputs/analyze.ts). */
+/** Waveform, spectrum, spectrogram and loudness of one recording (see engine/inputs/analyze.ts). */
 export interface Analysis {
-  version: 3;
+  version: 4;
   /** Size and mtime of the file it was made from; a cached copy is stale when they differ. */
   size: number;
   mtime: number;
   duration: number;
   /** Per-pixel min/max sample, -1..1. */
   wave: { min: number[]; max: number[] };
+  /** Whole-recording mean and peak level per band (same bands as the spectrogram), dB per FFT bin, 0 = full-scale tone. */
+  spectrum: { avg_db: number[]; peak_db: number[] };
   /** cols x bands bytes, base64, column = time, band = frequency; `freqs` = band centre in Hz; byte 0 = floor_db, 255 = 0 dB (a full-scale tone, per FFT bin). */
   spectrogram: { freqs: number[]; cols: number; bands: number; floor_db: number; data: string };
   /** Null when the loudness pass failed. */

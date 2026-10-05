@@ -20,6 +20,9 @@ describe('recording analysis', () => {
     expect(a.wave.max.length).toBeGreaterThan(50);
     expect(Math.max(...a.wave.max)).toBeGreaterThan(0.05);
     const { freqs, cols, bands, data } = a.spectrogram;
+    const top0 = a.spectrum.avg_db.indexOf(Math.max(...a.spectrum.avg_db));
+    expect(Math.abs(freqs[top0] - 1000)).toBeLessThan(150);
+    expect(a.spectrum.peak_db[top0]).toBeGreaterThanOrEqual(a.spectrum.avg_db[top0]);
     const bytes = Buffer.from(data, 'base64');
     // Loudest band in the middle column is the tone; the top band is silent.
     const col = bytes.subarray(Math.floor(cols / 2) * bands, Math.floor(cols / 2) * bands + bands);

@@ -1,5 +1,6 @@
 <script lang="ts">
-  // A recording at a glance: waveform, loudness (LUFS) and spectrogram.
+  // A recording at a glance: waveform, loudness (LUFS), spectrum and spectrogram, with playback:
+  // a red playhead moves along every time axis, and clicking or dragging a graph seeks.
   // The server decodes the file once and caches the numbers; drawing is here.
   import { onMount } from 'svelte';
   import { fitCanvas } from '$lib/canvas';
@@ -15,6 +16,13 @@
   let wave = $state<HTMLCanvasElement>();
   let gram = $state<HTMLCanvasElement>();
   let loud = $state<HTMLCanvasElement>();
+  let spec = $state<HTMLCanvasElement>();
+  let audio = $state<HTMLAudioElement>();
+  let t = $state(0);
+  let playing = $state(false);
+  let wW = $state(0), lW = $state(0), gW = $state(0);
+  const DB_TOP = 0;
+  const DB_BOTTOM = -100;
   let seq = 0;
 
   const css = (n: string, d: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || d;
@@ -32,6 +40,7 @@
 
   async function load(p: string) {
     path = p;
+    t = 0; playing = false;
     const mine = ++seq;
     loading = true; error = ''; data = null;
     try {
@@ -41,6 +50,39 @@
       if (mine === seq) data = j;
     } catch (e) { if (mine === seq) error = (e as Error).message; }
     if (mine === seq) loading = false;
+  }
+
+  const playable = $derived(!path.endsWith('.mka'));
+  const src = $derived(path ? '/api/recordings/' + path.split('/').map(encodeURIComponent).join('/') : '');
+  const bytes = $derived(data ? Uint8Array.from(atob(data.spectrogram.data), (c) => c.charCodeAt(0)) : null);
+  /** The spectrogram column under the playhead, as dB per band: drawn over the average spectrum. */
+  const live = $derived.by(() => {
+    if (!data || !bytes || !playable || (!playing && t === 0)) return null;
+    const { cols, bands } = data.spectrogram;
+    const c = Math.min(cols - 1, Math.floor((t / data.duration) * cols));
+    return Array.from({ length: bands }, (_, b) => (bytes[c * bands + b] / 255) * 100 - 100);
+  });
+  /** Playhead x in px inside a graph whose plot area spans [left, width - right]. */
+  const headX = (left: number, right: number, width: number) => left + Math.min(1, t / (data?.duration || 1)) * Math.max(0, width - left - right);
+
+  $effect(() => {
+    if (!playing || !audio) return;
+    let id = 0;
+    const step = () => { t = audio!.currentTime; id = requestAnimationFrame(step); };
+    id = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(id);
+  });
+  $effect(() => { if (data && spec) drawSpectrum(data, live); });
+
+  function seek(e: PointerEvent, left: number, right: number) {
+    if (!audio || !data || !playable) return;
+    const box = e.currentTarget as HTMLElement;
+    if (e.type === 'pointerdown') box.setPointerCapture(e.pointerId);
+    else if (!box.hasPointerCapture(e.pointerId)) return;
+    const r = box.getBoundingClientRect();
+    const f = Math.max(0, Math.min(1, (e.clientX - r.left - left) / (r.width - left - right)));
+    audio.currentTime = f * data.duration;
+    t = audio.currentTime;
   }
 
   const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -79,6 +121,38 @@
       ctx.textAlign = t === 0 ? 'left' : 'center';
       ctx.fillText(mmss(t), x, h);
     }
+  }
+
+  function drawSpectrum(a: Analysis, live: number[] | null) {
+    if (!spec) return;
+    const { ctx, w, h } = fitCanvas(spec);
+    const border = css('--border', '#27272a'), mfg = css('--muted-foreground', '#71717a');
+    const fgc = css('--foreground', '#fafafa'), ok = css('--ok', '#4ade80');
+    ctx.clearRect(0, 0, w, h);
+    const L = 34, R = 8, T = 6, B = 16, pw = w - L - R, ph = h - T - B;
+    const f = a.spectrogram.freqs, fmin = Math.log(f[0]), fmax = Math.log(f[f.length - 1]);
+    const X = (hz: number) => L + ((Math.log(hz) - fmin) / (fmax - fmin)) * pw;
+    const Y = (db: number) => T + ((DB_TOP - Math.max(DB_BOTTOM, Math.min(DB_TOP, db))) / (DB_TOP - DB_BOTTOM)) * ph;
+    ctx.font = '10px ui-monospace, monospace'; ctx.fillStyle = mfg; ctx.strokeStyle = border; ctx.lineWidth = 1;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (let d = DB_TOP; d >= DB_BOTTOM; d -= 20) {
+      ctx.beginPath(); ctx.moveTo(L, Math.round(Y(d)) + 0.5); ctx.lineTo(w - R, Math.round(Y(d)) + 0.5); ctx.stroke();
+      ctx.fillText(String(d), L - 4, Y(d));
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    for (const hz of AXIS) {
+      if (hz < f[0] || hz > f[f.length - 1]) continue;
+      ctx.beginPath(); ctx.moveTo(Math.round(X(hz)) + 0.5, T); ctx.lineTo(Math.round(X(hz)) + 0.5, T + ph); ctx.stroke();
+      ctx.fillText(khz(hz), X(hz), h);
+    }
+    const line = (vals: number[]) => { ctx.beginPath(); vals.forEach((v, i) => (i ? ctx.lineTo(X(f[i]), Y(v)) : ctx.moveTo(X(f[i]), Y(v)))); };
+    ctx.strokeStyle = mfg; ctx.lineWidth = 1; line(a.spectrum.peak_db); ctx.stroke();
+    line(a.spectrum.avg_db);
+    ctx.lineTo(X(f[f.length - 1]), T + ph); ctx.lineTo(X(f[0]), T + ph); ctx.closePath();
+    ctx.globalAlpha = 0.18; ctx.fillStyle = ok; ctx.fill(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = ok; ctx.lineWidth = 1.5; line(a.spectrum.avg_db); ctx.stroke();
+    if (live) { ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 1.5; line(live); ctx.stroke(); }
+    ctx.fillStyle = fgc;
   }
 
   function drawGram(a: Analysis) {
@@ -155,7 +229,7 @@
 
   function draw() {
     if (!data) return;
-    drawWave(data); drawLoud(data); drawGram(data);
+    drawWave(data); drawLoud(data); drawSpectrum(data, live); drawGram(data);
   }
   $effect(() => { if (data && wave && gram && (loud || !data.loudness)) draw(); });
   onMount(() => {
@@ -177,13 +251,29 @@
       </select>
       {#if data}<span class="text-xs text-muted-foreground">{mmss(data.duration)} analysed</span>{/if}
     </div>
+    {#if data}
+      <div class="sticky top-16 z-10 flex flex-wrap items-center gap-3 rounded-lg border bg-muted p-3">
+        {#if playable}
+          <!-- svelte-ignore a11y_media_has_caption -->
+          <audio bind:this={audio} class="min-w-0 flex-1" controls preload="metadata" {src}
+            onplay={() => (playing = true)} onpause={() => { playing = false; t = audio?.currentTime ?? t; }}
+            onended={() => (playing = false)} onseeked={() => (t = audio?.currentTime ?? t)}></audio>
+          <span class="font-mono text-xs tabular-nums text-subtle">{mmss(t)} / {mmss(data.duration)}</span>
+        {:else}
+          <span class="text-xs text-muted-foreground">Browsers can't play .mka files; download it from Recordings. The graphs still work.</span>
+        {/if}
+      </div>
+    {/if}
   {/if}
   {#if error}<p class="text-sm text-bad">{error}</p>{/if}
   {#if loading}<p class="text-sm text-muted-foreground">Analysing… a 15 minute file can take up to a minute the first time; it is cached after that.</p>{/if}
   <div class="flex flex-col gap-4" class:hidden={!data}>
     <figure class="rounded-lg border p-3">
       <figcaption class="mb-2 text-xs font-medium text-muted-foreground">Waveform</figcaption>
-      <canvas bind:this={wave} class="h-32 w-full" aria-label="Waveform of the recording"></canvas>
+      <div class="relative cursor-pointer" bind:clientWidth={wW} onpointerdown={(e) => seek(e, 8, 8)} onpointermove={(e) => seek(e, 8, 8)}>
+      <canvas bind:this={wave} class="block h-32 w-full" aria-label="Waveform of the recording"></canvas>
+      <div class="pointer-events-none absolute top-0 w-px bg-red-500" style="left:{headX(8, 8, wW)}px;height:calc(100% - 16px)"></div>
+    </div>
     </figure>
     {#if data?.loudness}
       {@const l = data.loudness}
@@ -194,13 +284,23 @@
             <div><dt class="text-[11px] text-muted-foreground">{k}</dt><dd class="font-mono text-lg tabular-nums">{v} <span class="text-xs text-muted-foreground">{u}</span></dd></div>
           {/each}
         </dl>
-        <canvas bind:this={loud} class="h-48 w-full" aria-label="Loudness over the recording"></canvas>
+        <div class="relative cursor-pointer" bind:clientWidth={lW} onpointerdown={(e) => seek(e, 34, 8)} onpointermove={(e) => seek(e, 34, 8)}>
+      <canvas bind:this={loud} class="block h-48 w-full" aria-label="Loudness over the recording"></canvas>
+      <div class="pointer-events-none absolute top-0 w-px bg-red-500" style="left:{headX(34, 8, lW)}px;height:calc(100% - 16px)"></div>
+    </div>
         <p class="mt-2 flex flex-wrap gap-x-4 text-[11px] text-muted-foreground"><span class="text-foreground">━ short-term</span><span style="color:#60a5fa">━ integrated so far</span><span>━ momentary</span><span class="text-ok">╌ targets −23 (R128) / −24 (A/85)</span></p>
       </figure>
     {/if}
     <figure class="rounded-lg border p-3">
+      <figcaption class="mb-2 flex flex-wrap gap-x-4 text-xs font-medium text-muted-foreground">Spectrum <span class="font-normal text-ok">average</span> <span class="font-normal">peak</span>{#if live}<span class="font-normal text-red-500">at {mmss(t)}</span>{/if} <span class="font-normal">dB per FFT bin, 0 = full-scale tone</span></figcaption>
+      <canvas bind:this={spec} class="block h-56 w-full" aria-label="Average and peak spectrum, and the spectrum at the playhead"></canvas>
+    </figure>
+    <figure class="rounded-lg border p-3">
       <figcaption class="mb-2 text-xs font-medium text-muted-foreground">Spectrogram</figcaption>
-      <canvas bind:this={gram} class="h-56 w-full" aria-label="Spectrogram: frequency over time"></canvas>
+      <div class="relative cursor-pointer" bind:clientWidth={gW} onpointerdown={(e) => seek(e, 34, 8)} onpointermove={(e) => seek(e, 34, 8)}>
+      <canvas bind:this={gram} class="block h-56 w-full" aria-label="Spectrogram: frequency over time"></canvas>
+      <div class="pointer-events-none absolute top-0 w-px bg-red-500" style="left:{headX(34, 8, gW)}px;height:calc(100% - 16px)"></div>
+    </div>
     </figure>
   </div>
 </div>
